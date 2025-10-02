@@ -144,7 +144,12 @@ def main():
 
         if not expiration_data:
             print(f"Error: Could not find SBP message type {SBP_MSG_TYPE} in {LOG_FILE}.")
-            send_slack_alert("noc-alerts-test", "🚨 SCRIPT ERROR: Could not find certificate message in Skylark log.")
+            # --- THIS IS THE UPDATED LINE ---
+            error_message = (
+                f"🚨 SCRIPT ERROR: Could not find certificate message in the output file ({LOG_FILE}) "
+                f"after {NTRIP_TIMEOUT_SECONDS} seconds."
+            )
+            send_slack_alert("noc-alerts-test", error_message)
             exit(1)
 
         # Step 3: Compare expiration date with the current date
