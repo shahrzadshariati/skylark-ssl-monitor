@@ -20,12 +20,12 @@ jobs:
       with:
         python-version: '3.11'
 
-    # --- THIS STEP IS NOW UPDATED ---
-    # We now install swift-suite directly with pip, which is more reliable.
-    - name: Install Python dependencies and swift-suite
+    # --- THIS IS THE FINAL FIX ---
+    # The package name was incorrect. It should be 'sbp'.
+    - name: Install Python dependencies and SBP suite
       run: |
         python -m pip install --upgrade pip
-        pip install requests swift-suite
+        pip install requests sbp
 
     - name: Run SSL Check Script
       env:
@@ -34,3 +34,4 @@ jobs:
         SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         PAGERDUTY_ROUTING_KEY: ${{ secrets.PAGERDUTY_ROUTING_KEY }}
       run: python3 ssl_check_skylark.py
+
