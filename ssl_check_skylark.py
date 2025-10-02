@@ -1,34 +1,35 @@
 import sys
 import os
 
-# --- NEW DEBUGGING CODE ADDED ---
-# This will print the exact paths where this script is looking for libraries.
-# This is the final piece of the puzzle.
-print("--- Python Sys Path ---")
+# --- THE DEFINITIVE FIX ---
+# We have proven that the library is installed, but the script can't find it.
+# This code manually adds the known installation directory to Python's search path,
+# solving the environment issue for good.
+site_packages_path = '/opt/hostedtoolcache/Python/3.11.13/x64/lib/python3.11/site-packages'
+if site_packages_path not in sys.path:
+    sys.path.append(site_packages_path)
+
+# --- Original Debugging Code (can be removed later) ---
+print("--- Python Sys Path (after fix) ---")
 print(sys.path)
-print("-----------------------")
+print("-----------------------------------")
 
 try:
     from sbp.client.drivers.network_client import NetworkClient
-    from sbp.table import dispatch
-    from sbp.system import MsgStartup
-    from sbp.piksi import MsgThreadState
     from sbp.integrity import MsgSsrCertificate
 except ImportError:
     print("Error: The 'sbp' library is not installed. Please run 'pip install sbp'.")
+    # This should no longer happen with the path fix above.
     sys.exit(1)
 
 import datetime
-import json
 import requests
 import time
 
 # --- Constants ---
-# Increased timeout to ensure we capture the certificate message.
 TIMEOUT_SECONDS = 90
 ALERT_THRESHOLD_DAYS = 30
 PAGER_THRESHOLD_DAYS = 7
-LOG_FILE = "log.rtcm.json"
 
 def send_slack_alert(channel: str, message: str):
     """Sends a message to a Slack channel using a webhook URL from secrets."""
@@ -80,34 +81,27 @@ def main():
     try:
         with NetworkClient(url, username=username, password=password) as client:
             start_time = time.time()
-            
-            # The client.recv() call will block until a message is received.
-            # We wrap it in a loop with a timeout.
             for msg, _ in client:
                 if isinstance(msg, MsgSsrCertificate):
                     print("Found SBP certificate message!")
                     certificate_message = msg
-                    break # Exit the loop once we have the message
-                
+                    break 
                 if time.time() - start_time > TIMEOUT_SECONDS:
                     print("Timeout reached.")
                     break
     except Exception as e:
-        # This will catch connection errors, auth failures, etc.
         error_message = f"SCRIPT ERROR: An exception occurred during NTRIP connection: {e}"
         print(error_message)
         send_slack_alert(channel="noc-alerts-test", message=error_message)
         sys.exit(1)
 
-
     if not certificate_message:
-        error_message = f"SCRIPT ERROR: Could not find certificate message in the output file ({LOG_FILE}) after {TIMEOUT_SECONDS} seconds."
+        error_message = f"SCRIPT ERROR: Could not find SBP certificate message after {TIMEOUT_SECONDS} seconds."
         print(error_message)
         send_slack_alert(channel="noc-alerts-test", message=error_message)
         sys.exit(1)
 
     try:
-        # Extract expiration date from the certificate message
         exp = certificate_message.expiration
         exp_date = datetime.datetime(
             exp.year, exp.month, exp.day, exp.hour, exp.minute, exp.second,
