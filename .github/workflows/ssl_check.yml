@@ -25,17 +25,11 @@ jobs:
         python -m pip install --upgrade pip
         pip install requests sbp
 
-    # --- THIS IS THE FINAL, WORKING FIX ---
-    # The previous method using GITHUB_PATH was not reliable.
-    # This new 'run' command explicitly adds the correct directory to the PATH
-    # for the script execution step, which is a more robust solution.
     - name: Run SSL Check Script
       env:
         SKYLARK_USERNAME: ${{ secrets.SKYLARK_USERNAME }}
         SKYLARK_PASSWORD: ${{ secrets.SKYLARK_PASSWORD }}
         SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         PAGERDUTY_ROUTING_KEY: ${{ secrets.PAGERDUTY_ROUTING_KEY }}
-      run: |
-        export PATH="$HOME/.local/bin:$PATH"
-        python3 ssl_check_skylark.py
+      run: python3 ssl_check_skylark.py
 
