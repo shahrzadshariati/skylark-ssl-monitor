@@ -20,12 +20,15 @@ jobs:
       with:
         python-version: '3.11'
 
-    # --- THIS IS THE FINAL FIX ---
-    # The package name was incorrect. It should be 'sbp'.
     - name: Install Python dependencies and SBP suite
       run: |
         python -m pip install --upgrade pip
         pip install requests sbp
+
+    # --- THIS IS THE FINAL, CRITICAL FIX ---
+    # This step adds the directory where pip installs command-line tools to the system's PATH.
+    - name: Add pip binary path to PATH
+      run: echo "$HOME/.local/bin" >> $GITHUB_PATH
 
     - name: Run SSL Check Script
       env:
