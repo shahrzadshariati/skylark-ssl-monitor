@@ -17,9 +17,7 @@ SBP_MSG_TYPE = 3081
 # --- Helper Functions ---
 
 def get_credentials():
-    """
-    Retrieves credentials securely from environment variables.
-    """
+    """Retrieves credentials securely from environment variables."""
     username = os.environ.get("SKYLARK_USERNAME")
     password = os.environ.get("SKYLARK_PASSWORD")
     if not username or not password:
@@ -28,9 +26,7 @@ def get_credentials():
     return username, password
 
 def send_slack_alert(channel: str, message: str):
-    """
-    Sends a formatted message to a specified Slack channel using a webhook URL.
-    """
+    """Sends a formatted message to a specified Slack channel using a webhook URL."""
     webhook_url = os.environ.get("SLACK_WEBHOOK_URL")
     if not webhook_url or webhook_url == "waiting-for-approval":
         print("Slack alert not sent: SLACK_WEBHOOK_URL is not configured.")
@@ -47,9 +43,7 @@ def send_slack_alert(channel: str, message: str):
         print(f"Error sending Slack alert: {e}")
 
 def send_pager_duty_alert(message: str, severity: str = "critical"):
-    """
-    Sends an alert to PagerDuty using an Events API v2 integration key.
-    """
+    """Sends an alert to PagerDuty using an Events API v2 integration key."""
     routing_key = os.environ.get("PAGERDUTY_ROUTING_KEY")
     if not routing_key or routing_key == "waiting-for-approval":
         print("PagerDuty alert not sent: PAGERDUTY_ROUTING_KEY is not configured.")
@@ -75,15 +69,17 @@ def send_pager_duty_alert(message: str, severity: str = "critical"):
 
 
 def run_ntrip_command(username, password):
-    """
-    Runs the ntripping command and captures detailed output for debugging.
-    """
-    # --- THIS IS THE CORRECTED LINE ---
-    # The command names are 'ntripping' and 'rtcm32json', without the 'swift' prefix.
+    """Runs the ntripping command using its full path to avoid PATH issues."""
+    # --- THIS IS THE DEFINITIVE FIX ---
+    # Construct the full, absolute path to the executables.
+    home_dir = os.path.expanduser('~')
+    ntripping_path = os.path.join(home_dir, '.local', 'bin', 'ntripping')
+    rtcm32json_path = os.path.join(home_dir, '.local', 'bin', 'rtcm32json')
+
     command = (
-        f"ntripping --username {username} --password {password} "
+        f"{ntripping_path} --username {username} --password {password} "
         f"--url {SKYLARK_URL} --lat {SKYLARK_LAT} --lon {SKYLARK_LON} | "
-        f"rtcm32json > {LOG_FILE}"
+        f"{rtcm32json_path} > {LOG_FILE}"
     )
     print(f"Starting NTRIP connection for {NTRIP_TIMEOUT_SECONDS} seconds...")
     process = None
@@ -111,20 +107,10 @@ def run_ntrip_command(username, password):
 
 
 def find_and_parse_certificate():
-    """
-    Reads the log file and finds the first SBP certificate message.
-    """
+    """Reads the log file and finds the first SBP certificate message."""
     if not os.path.exists(LOG_FILE) or os.path.getsize(LOG_FILE) == 0:
         print(f"Error: Log file '{LOG_FILE}' was not created or is empty.")
         return None
-
-    with open(LOG_FILE, 'r') as f:
-        print(f"--- Start of {LOG_FILE} Head ---")
-        for i, line in enumerate(f):
-            if i >= 5: # Print first 5 lines
-                break
-            print(line.strip())
-        print(f"--- End of {LOG_FILE} Head ---")
 
     with open(LOG_FILE, 'r') as f:
         for line in f:
@@ -138,9 +124,7 @@ def find_and_parse_certificate():
     return None
 
 def main():
-    """
-    Main function to execute the SSL check procedure.
-    """
+    """Main function to execute the SSL check procedure."""
     username, password = get_credentials()
 
     if not run_ntrip_command(username, password):
@@ -150,7 +134,6 @@ def main():
         expiration_data = find_and_parse_certificate()
 
         if not expiration_data:
-            print(f"Error: Could not find SBP message type {SBP_MSG_TYPE} in {LOG_FILE}.")
             error_message = (
                 f"🚨 SCRIPT ERROR: Could not find certificate message in the output file ({LOG_FILE}) "
                 f"after {NTRIP_TIMEOUT_SECONDS} seconds."
@@ -193,5 +176,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-
 
