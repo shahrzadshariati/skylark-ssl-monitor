@@ -1,143 +1,144 @@
+import sys
 import os
-import time
-import base64
-from datetime import datetime, timezone
-import socket
+
+# --- NEW DEBUGGING CODE ADDED ---
+# This will print the exact paths where this script is looking for libraries.
+# This is the final piece of the puzzle.
+print("--- Python Sys Path ---")
+print(sys.path)
+print("-----------------------")
 
 try:
-    from sbp.client.drivers.network_driver import TCPDriver
-    from sbp.client import Framer
-    from sbp.ssr import MsgSsrCertificate
+    from sbp.client.drivers.network_client import NetworkClient
+    from sbp.table import dispatch
+    from sbp.system import MsgStartup
+    from sbp.piksi import MsgThreadState
+    from sbp.integrity import MsgSsrCertificate
 except ImportError:
     print("Error: The 'sbp' library is not installed. Please run 'pip install sbp'.")
-    exit(1)
+    sys.exit(1)
 
-# --- Configuration ---
-SKYLARK_HOST = "eu.l1l2.skylark.swiftnav.com"
-SKYLARK_PORT = 2102
-SKYLARK_MOUNTPOINT = "/SSR-integrity"
-CONNECTION_TIMEOUT_SECONDS = 90
+import datetime
+import json
+import requests
+import time
+
+# --- Constants ---
+# Increased timeout to ensure we capture the certificate message.
+TIMEOUT_SECONDS = 90
 ALERT_THRESHOLD_DAYS = 30
 PAGER_THRESHOLD_DAYS = 7
-SBP_MSG_TYPE = 0x0C09 # SBP message type for MsgSsrCertificate is 3081 (0x0C09)
+LOG_FILE = "log.rtcm.json"
 
-# --- Helper Functions ---
-
-def get_credentials():
-    """Retrieves credentials securely from environment variables."""
-    username = os.environ.get("SKYLARK_USERNAME")
-    password = os.environ.get("SKYLARK_PASSWORD")
-    if not username or not password:
-        print("Error: SKYLARK_USERNAME or SKYLARK_PASSWORD environment variables not set.")
-        exit(1)
-    return username, password
-
-def send_slack_alert(message: str):
-    """Sends a formatted message to the test Slack channel."""
+def send_slack_alert(channel: str, message: str):
+    """Sends a message to a Slack channel using a webhook URL from secrets."""
     webhook_url = os.environ.get("SLACK_WEBHOOK_URL")
     if not webhook_url or webhook_url == "waiting-for-approval":
-        print("Slack alert not sent: SLACK_WEBHOOK_URL is not configured.")
-        print(f"Message: {message}")
+        print(f"SKIPPING SLACK: Webhook URL not configured.")
+        print(f"Would have sent to #{channel}: {message}")
         return
     try:
-        import requests
-        payload = {"channel": "#noc-alerts-test", "text": message}
+        payload = {"channel": f"#{channel}", "text": message}
         response = requests.post(webhook_url, json=payload)
         response.raise_for_status()
-        print("Successfully sent Slack alert.")
-    except Exception as e:
+        print(f"Successfully sent Slack alert to #{channel}.")
+    except requests.exceptions.RequestException as e:
         print(f"Error sending Slack alert: {e}")
 
-def send_pager_duty_alert(message: str, severity: str = "critical"):
-    """Sends an alert to PagerDuty."""
+def send_pager_duty_alert(message: str, severity: str):
+    """Sends an alert to PagerDuty using a routing key from secrets."""
     routing_key = os.environ.get("PAGERDUTY_ROUTING_KEY")
     if not routing_key or routing_key == "waiting-for-approval":
-        print("PagerDuty alert not sent: PAGERDUTY_ROUTING_KEY is not configured.")
-        print(f"Message: {message}")
+        print(f"SKIPPING PAGERDUTY: Routing key not configured.")
+        print(f"Would have sent PagerDuty alert: {message}")
         return
     try:
-        import requests
         payload = {
             "routing_key": routing_key,
             "event_action": "trigger",
-            "payload": {"summary": message, "severity": severity, "source": "GitHub Actions - Skylark SSL Monitor"},
+            "payload": {
+                "summary": message,
+                "severity": severity,
+                "source": "GitHub Actions - Skylark Monitor",
+            },
         }
         response = requests.post("https://events.pagerduty.com/v2/event", json=payload)
         response.raise_for_status()
         print("Successfully sent PagerDuty alert.")
-    except Exception as e:
+    except requests.exceptions.RequestException as e:
         print(f"Error sending PagerDuty alert: {e}")
 
-def get_certificate_from_skylark(username, password):
-    """Connects to Skylark natively and listens for the certificate message."""
-    # Ntrip 1.0 login required for Skylark
-    auth_string = f"{username}:{password}"
-    auth_b64 = base64.b64encode(auth_string.encode('ascii')).decode('ascii')
-    request = (
-        f"GET {SKYLARK_MOUNTPOINT} HTTP/1.0\r\n"
-        f"User-Agent: SBP-Client/1.0\r\n"
-        f"Authorization: Basic {auth_b64}\r\n"
-        f"\r\n"
-    )
-
-    print(f"Connecting to {SKYLARK_HOST}:{SKYLARK_PORT}...")
-    try:
-        with TCPDriver(SKYLARK_HOST, SKYLARK_PORT) as driver:
-            driver.write(request.encode('ascii'))
-            framer = Framer(driver.read)
-            
-            start_time = time.time()
-            while time.time() - start_time < CONNECTION_TIMEOUT_SECONDS:
-                try:
-                    # Non-blocking read with a short timeout
-                    msg, _ = framer.next(timeout=1.0)
-                    if msg is not None and msg.msg_type == SBP_MSG_TYPE:
-                        print("Found SBP certificate message.")
-                        return msg
-                except (socket.timeout, StopIteration):
-                    # No message received, continue waiting
-                    continue
-            print("Connection timed out waiting for certificate message.")
-            return None
-    except Exception as e:
-        print(f"An error occurred during the Skylark connection: {e}")
-        return None
-
 def main():
-    """Main function to execute the SSL check procedure."""
-    username, password = get_credentials()
-    certificate_msg = get_certificate_from_skylark(username, password)
+    """Main function to run the SSL check."""
+    username = os.environ.get("SKYLARK_USERNAME")
+    password = os.environ.get("SKYLARK_PASSWORD")
+    url = "eu.l1l2.skylark.swiftnav.com:2102"
+    
+    certificate_message = None
 
-    if not certificate_msg:
-        error_message = (
-            f"🚨 SCRIPT ERROR: Could not find SBP certificate message from Skylark "
-            f"after {CONNECTION_TIMEOUT_SECONDS} seconds."
+    print(f"Starting NTRIP connection for {TIMEOUT_SECONDS} seconds...")
+    try:
+        with NetworkClient(url, username=username, password=password) as client:
+            start_time = time.time()
+            
+            # The client.recv() call will block until a message is received.
+            # We wrap it in a loop with a timeout.
+            for msg, _ in client:
+                if isinstance(msg, MsgSsrCertificate):
+                    print("Found SBP certificate message!")
+                    certificate_message = msg
+                    break # Exit the loop once we have the message
+                
+                if time.time() - start_time > TIMEOUT_SECONDS:
+                    print("Timeout reached.")
+                    break
+    except Exception as e:
+        # This will catch connection errors, auth failures, etc.
+        error_message = f"SCRIPT ERROR: An exception occurred during NTRIP connection: {e}"
+        print(error_message)
+        send_slack_alert(channel="noc-alerts-test", message=error_message)
+        sys.exit(1)
+
+
+    if not certificate_message:
+        error_message = f"SCRIPT ERROR: Could not find certificate message in the output file ({LOG_FILE}) after {TIMEOUT_SECONDS} seconds."
+        print(error_message)
+        send_slack_alert(channel="noc-alerts-test", message=error_message)
+        sys.exit(1)
+
+    try:
+        # Extract expiration date from the certificate message
+        exp = certificate_message.expiration
+        exp_date = datetime.datetime(
+            exp.year, exp.month, exp.day, exp.hour, exp.minute, exp.second,
+            tzinfo=datetime.timezone.utc
         )
-        send_slack_alert(error_message)
-        exit(1)
+        current_date = datetime.datetime.now(datetime.timezone.utc)
+        days_until_expiry = (exp_date - current_date).days
 
-    # Extract expiration data from the SBP message
-    exp = certificate_msg.expiration
-    exp_date = datetime(exp.year, exp.month, exp.day, exp.hours, exp.minutes, tzinfo=timezone.utc)
-    current_date = datetime.now(timezone.utc)
-    days_until_expiry = (exp_date - current_date).days
+        print(f"Certificate expires on: {exp_date.isoformat()}")
+        print(f"Current date is: {current_date.isoformat()}")
+        print(f"Days until expiry: {days_until_expiry}")
 
-    print(f"Certificate expires on: {exp_date.strftime('%Y-%m-%d')}")
-    print(f"Days until expiration: {days_until_expiry}")
+        if days_until_expiry <= 0:
+            message = f"🔥 PAGER ALERT: CRITICAL! Certificate has EXPIRED!"
+            send_slack_alert(channel="noc-alerts-test", message=message)
+            send_pager_duty_alert(message=message, severity="critical")
+        elif days_until_expiry <= PAGER_THRESHOLD_DAYS:
+            message = f"🔥 PAGER ALERT: Certificate expiration to expire in {days_until_expiry} days."
+            send_slack_alert(channel="noc-alerts-test", message=message)
+            send_pager_duty_alert(message=message, severity="critical")
+        elif days_until_expiry <= ALERT_THRESHOLD_DAYS:
+            message = f"⚠️ WARNING: Certificate expiration to expire in {days_until_expiry} days."
+            send_slack_alert(channel="noc-alerts-test", message=message)
+        else:
+            print("Certificate is valid and not expiring soon. No alert needed.")
 
-    if days_until_expiry <= 0:
-        message = f"🔥🔥🔥 CRITICAL ALERT: Skylark SSL certificate has EXPIRED!"
-        send_slack_alert(message)
-        send_pager_duty_alert(message)
-    elif days_until_expiry <= PAGER_THRESHOLD_DAYS:
-        message = f"🔥 PAGER ALERT: Certificate expiration to expire in {days_until_expiry} days."
-        send_slack_alert(message)
-        send_pager_duty_alert(message)
-    elif days_until_expiry <= ALERT_THRESHOLD_DAYS:
-        message = f"⚠️ WARNING: Certificate expiration to expire in {days_until_expiry} days."
-        send_slack_alert(message)
-    else:
-        print("Certificate is valid and not expiring soon. No alert needed.")
+    except Exception as e:
+        error_message = f"SCRIPT ERROR: Could not parse certificate data. Error: {e}"
+        print(error_message)
+        send_slack_alert(channel="noc-alerts-test", message=error_message)
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
