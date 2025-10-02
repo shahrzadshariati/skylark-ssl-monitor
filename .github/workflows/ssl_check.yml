@@ -20,12 +20,20 @@ jobs:
       with:
         python-version: '3.11'
 
-    # --- THIS STEP IS NOW CORRECTED ---
-    # We now use 'python3 -m pip' to ensure we install packages for the correct python version.
     - name: Install Python dependencies
       run: |
         python3 -m pip install --upgrade pip
-        python3 -m pip install requests sbp
+        python3 -m pip install --no-cache-dir requests sbp
+
+    # --- NEW DEBUGGING STEP ADDED ---
+    # This step will show us exactly what packages are installed before running the script.
+    - name: Verify Installation
+      run: |
+        echo "--- Verifying Python and Pip paths ---"
+        which python3
+        which pip
+        echo "--- Listing installed packages ---"
+        python3 -m pip list
 
     - name: Run SSL Check Script
       env:
@@ -34,6 +42,4 @@ jobs:
         SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         PAGERDUTY_ROUTING_KEY: ${{ secrets.PAGERDUTY_ROUTING_KEY }}
       run: python3 ssl_check_skylark.py
-
-
 
