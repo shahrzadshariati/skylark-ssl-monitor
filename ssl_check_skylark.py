@@ -76,12 +76,14 @@ def send_pager_duty_alert(message: str, severity: str = "critical"):
 
 def run_ntrip_command(username, password):
     """
-    Runs the swift ntripping command and captures detailed output for debugging.
+    Runs the ntripping command and captures detailed output for debugging.
     """
+    # --- THIS IS THE CORRECTED LINE ---
+    # The command names are 'ntripping' and 'rtcm32json', without the 'swift' prefix.
     command = (
-        f"swift ntripping --username {username} --password {password} "
+        f"ntripping --username {username} --password {password} "
         f"--url {SKYLARK_URL} --lat {SKYLARK_LAT} --lon {SKYLARK_LON} | "
-        f"swift rtcm32json > {LOG_FILE}"
+        f"rtcm32json > {LOG_FILE}"
     )
     print(f"Starting NTRIP connection for {NTRIP_TIMEOUT_SECONDS} seconds...")
     process = None
@@ -90,8 +92,6 @@ def run_ntrip_command(username, password):
         time.sleep(NTRIP_TIMEOUT_SECONDS)
         process.terminate()
         
-        # --- NEW DEBUGGING STEP ---
-        # Read stderr to see if the command printed any errors
         stdout, stderr = process.communicate(timeout=5)
         if stderr:
             print("--- Start of NTRIP Command Error Log ---")
@@ -118,8 +118,6 @@ def find_and_parse_certificate():
         print(f"Error: Log file '{LOG_FILE}' was not created or is empty.")
         return None
 
-    # --- NEW DEBUGGING STEP ---
-    # Print the first few lines of the log file to see what data we received.
     with open(LOG_FILE, 'r') as f:
         print(f"--- Start of {LOG_FILE} Head ---")
         for i, line in enumerate(f):
@@ -195,4 +193,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
