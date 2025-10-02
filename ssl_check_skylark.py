@@ -1,158 +1,184 @@
-import subprocess
-import json
 import os
-from datetime import datetime, timezone, timedelta
+import json
+import subprocess
+import time
+from datetime import datetime, timedelta, timezone
 
 # --- Configuration ---
-USERNAME = os.environ.get("SKYLARK_USERNAME", "swiftnoc@cx1")
-PASSWORD = os.environ.get("SKYLARK_PASSWORD", "noctesting")
-SLACK_WEBHOOK_URL = os.environ.get("SLACK_WEBHOOK_URL")
-PAGERDUTY_ROUTING_KEY = os.environ.get("PAGERDUTY_ROUTING_KEY")
-
-NTRIP_URL = "https://eu.l1l2.skylark.swiftnav.com:2102/SSR-integrity"
-LAT = "52.149"
-LON = "13.096"
-
+SKYLARK_URL = "https://eu.l1l2.skylark.swiftnav.com:2102/SSR-integrity"
+SKYLARK_LAT = 52.149
+SKYLARK_LON = 13.096
+NTRIP_TIMEOUT_SECONDS = 20  # Time to run the ntrip command
 LOG_FILE = "log.rtcm.json"
-NTRIP_TIMEOUT_SECONDS = 20
 ALERT_THRESHOLD_DAYS = 30
 PAGER_THRESHOLD_DAYS = 7
+SBP_MSG_TYPE = 3081
 
 # --- Helper Functions ---
 
-def send_slack_alert(channel: str, message: str):
-    """Placeholder to send a message to a Slack channel."""
-    print(f"--- SIMULATING SLACK ALERT to #{channel} ---")
-    print(message)
-    print("------------------------------------------")
+def get_credentials():
+    """
+    Retrieves credentials securely from environment variables.
+    In GitHub Actions, these are set via repository secrets.
+    """
+    username = os.environ.get("SKYLARK_USERNAME")
+    password = os.environ.get("SKYLARK_PASSWORD")
+    if not username or not password:
+        print("Error: SKYLARK_USERNAME or SKYLARK_PASSWORD environment variables not set.")
+        print("Please configure them as secrets in your GitHub repository.")
+        exit(1)
+    return username, password
 
-    if not SLACK_WEBHOOK_URL or SLACK_WEBHOOK_URL == 'waiting-for-approval':
-        print("WARNING: SLACK_WEBHOOK_URL is not set. Cannot send real alert.")
+def send_slack_alert(channel: str, message: str):
+    """
+    Sends a formatted message to a specified Slack channel using a webhook URL.
+    """
+    webhook_url = os.environ.get("SLACK_WEBHOOK_URL")
+    if not webhook_url or webhook_url == "waiting-for-approval":
+        print("Slack alert not sent: SLACK_WEBHOOK_URL is not configured.")
+        print(f"Message: {message}")
         return
 
-    import requests
-    payload = {"channel": f"#{channel}", "text": message}
     try:
-        response = requests.post(SLACK_WEBHOOK_URL, json=payload)
+        import requests
+        payload = {"channel": f"#{channel}", "text": message}
+        response = requests.post(webhook_url, json=payload)
         response.raise_for_status()
-        print("Successfully sent Slack alert.")
-    except requests.exceptions.RequestException as e:
-        print(f"ERROR: Failed to send Slack alert: {e}")
+        print(f"Successfully sent Slack alert to #{channel}.")
+    except Exception as e:
+        print(f"Error sending Slack alert: {e}")
 
 def send_pager_duty_alert(message: str, severity: str = "critical"):
-    """Placeholder to trigger a PagerDuty incident."""
-    print(f"--- SIMULATING PAGERDUTY ALERT ({severity}) ---")
-    print(message)
-    print("------------------------------------------")
-
-    if not PAGERDUTY_ROUTING_KEY or PAGERDUTY_ROUTING_KEY == 'waiting-for-approval':
-        print("WARNING: PAGERDUTY_ROUTING_KEY is not set. Cannot send real alert.")
+    """
+    Sends an alert to PagerDuty using an Events API v2 integration key.
+    """
+    routing_key = os.environ.get("PAGERDUTY_ROUTING_KEY")
+    if not routing_key or routing_key == "waiting-for-approval":
+        print("PagerDuty alert not sent: PAGERDUTY_ROUTING_KEY is not configured.")
+        print(f"Message: {message}")
         return
-        
-    import requests
-    url = "https://events.pagerduty.com/v2/enqueue"
-    payload = {
-        "routing_key": PAGERDUTY_ROUTING_KEY,
-        "event_action": "trigger",
-        "payload": {
-            "summary": message,
-            "source": "skylark-ssl-monitor",
-            "severity": severity,
-        }
-    }
-    headers = {'Content-Type': 'application/json'}
+
     try:
-        response = requests.post(url, data=json.dumps(payload), headers=headers)
+        import requests
+        payload = {
+            "routing_key": routing_key,
+            "event_action": "trigger",
+            "payload": {
+                "summary": message,
+                "severity": severity,
+                "source": "GitHub Actions - Skylark SSL Monitor",
+            },
+        }
+        response = requests.post("https://events.pagerduty.com/v2/event", json=payload)
         response.raise_for_status()
         print("Successfully sent PagerDuty alert.")
-    except requests.exceptions.RequestException as e:
-        print(f"ERROR: Failed to send PagerDuty alert: {e}")
+    except Exception as e:
+        print(f"Error sending PagerDuty alert: {e}")
 
-# --- Main Script Logic ---
 
-def main():
-    """Main function to run the SSL certificate check."""
-    if os.path.exists(LOG_FILE):
-        os.remove(LOG_FILE)
-
+def run_ntrip_command(username, password):
+    """
+    Runs the swift ntripping command as a subprocess and logs output to a file.
+    """
     command = (
-        f"swift ntripping --username {USERNAME} --password {PASSWORD} "
-        f"--url {NTRIP_URL} --lat {LAT} --lon {LON} | "
+        f"swift ntripping --username {username} --password {password} "
+        f"--url {SKYLARK_URL} --lat {SKYLARK_LAT} --lon {SKYLARK_LON} | "
         f"swift rtcm32json > {LOG_FILE}"
     )
-
     print(f"Starting NTRIP connection for {NTRIP_TIMEOUT_SECONDS} seconds...")
-    process = None
     try:
+        # We use shell=True because the command includes a pipe (|)
         process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        process.wait(timeout=NTRIP_TIMEOUT_SECONDS)
-    except subprocess.TimeoutExpired:
-        print("NTRIP connection timeout reached, terminating process.")
+        time.sleep(NTRIP_TIMEOUT_SECONDS)
         process.terminate()
-        try:
-            process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            print("Process did not terminate gracefully, killing.")
-            process.kill()
+        # Wait a moment for the process to terminate cleanly
+        process.wait(timeout=5)
+        print("NTRIP connection terminated.")
+        return True
+    except subprocess.TimeoutExpired:
+        print("NTRIP process did not terminate in time, killing.")
+        process.kill()
+        return True # Still consider it a success as we likely got the data
     except Exception as e:
         print(f"An error occurred while running the ntripping command: {e}")
-        return
+        # Capture and print stderr for debugging
+        stderr = process.stderr.read().decode()
+        if stderr:
+            print(f"Error details: {stderr}")
+        return False
 
-    print("NTRIP connection closed.")
 
+def find_and_parse_certificate():
+    """
+    Reads the log file and finds the first SBP certificate message.
+    """
     if not os.path.exists(LOG_FILE):
-        print(f"ERROR: {LOG_FILE} was not created. Cannot check certificate.")
-        return
+        print(f"Error: Log file '{LOG_FILE}' was not created.")
+        return None
 
-    expiration_date = None
+    with open(LOG_FILE, 'r') as f:
+        for line in f:
+            try:
+                data = json.loads(line)
+                if data.get("sbp", {}).get("msg_type") == SBP_MSG_TYPE:
+                    print("Found SBP certificate message.")
+                    return data["sbp"]["expiration"]
+            except json.JSONDecodeError:
+                continue # Ignore malformed lines
+    return None
+
+def main():
+    """
+    Main function to execute the SSL check procedure.
+    """
+    username, password = get_credentials()
+
+    # Step 1: Run the NTRIP command to generate the log file
+    if not run_ntrip_command(username, password):
+        # The function already prints errors, just exit
+        exit(1)
+
     try:
-        with open(LOG_FILE, 'r') as f:
-            for line in f:
-                try:
-                    data = json.loads(line)
-                    if data.get("sbp", {}).get("msg_type") == 3081:
-                        exp = data["sbp"]["expiration"]
-                        expiration_date = datetime(
-                            exp["year"], exp["month"], exp["day"],
-                            exp["hours"], exp["minutes"], exp["seconds"],
-                            tzinfo=timezone.utc
-                        )
-                        print(f"Found certificate. Expiration Date (UTC): {expiration_date}")
-                        break
-                except (json.JSONDecodeError, KeyError):
-                    continue
-    except Exception as e:
-        print(f"An error occurred while reading or parsing {LOG_FILE}: {e}")
-        return
+        # Step 2: Find and parse the certificate from the log file
+        expiration_data = find_and_parse_certificate()
 
-    if expiration_date:
-        current_date_utc = datetime.now(timezone.utc)
-        days_until_expiry = (expiration_date - current_date_utc).days
+        if not expiration_data:
+            print(f"Error: Could not find SBP message type {SBP_MSG_TYPE} in {LOG_FILE}.")
+            send_slack_alert("noc-alerts-test", "🚨 SCRIPT ERROR: Could not find certificate message in Skylark log.")
+            exit(1)
 
-        print(f"Current Date (UTC): {current_date_utc}")
-        print(f"Days until certificate expires: {days_until_expiry}")
+        # Step 3: Compare expiration date with the current date
+        exp_date = datetime(
+            expiration_data['year'],
+            expiration_data['month'],
+            expiration_data['day'],
+            expiration_data['hours'],
+            expiration_data['minutes'],
+            tzinfo=timezone.utc
+        )
+        current_date = datetime.now(timezone.utc)
+        days_until_expiry = (exp_date - current_date).days
 
-        if days_until_expiry < 0:
-            message = f"🚨 CRITICAL: Skylark SSL certificate has EXPIRED!"
+        print(f"Certificate expires on: {exp_date.strftime('%Y-%m-%d')}")
+        print(f"Days until expiration: {days_until_expiry}")
+
+        # Step 4: Send alerts based on thresholds
+        if days_until_expiry <= 0:
+            message = f"🔥🔥🔥 CRITICAL ALERT: Skylark SSL certificate has EXPIRED!"
             send_slack_alert(channel="noc-alerts-test", message=message)
             send_pager_duty_alert(message=message, severity="critical")
-        
         elif days_until_expiry <= PAGER_THRESHOLD_DAYS:
-            message = f"🔥 PAGER ALERT: Skylark SSL certificate expires in {days_until_expiry} days on {expiration_date.date()}."
+            message = f"🔥 PAGER ALERT: Skylark SSL certificate expires in {days_until_expiry} days on {exp_date.strftime('%Y-%m-%d')}."
             send_slack_alert(channel="noc-alerts-test", message=message)
             send_pager_duty_alert(message=message, severity="critical")
-
         elif days_until_expiry <= ALERT_THRESHOLD_DAYS:
-            message = f"⚠️ WARNING: Skylark SSL certificate expires in {days_until_expiry} days on {expiration_date.date()}."
+            message = f"⚠️ WARNING: Skylark SSL certificate expires in {days_until_expiry} days on {exp_date.strftime('%Y-%m-%d')}."
             send_slack_alert(channel="noc-alerts-test", message=message)
         else:
-            print("✅ Certificate is valid and not expiring soon. No action needed.")
-    else:
-        message = "🚨 MONITORING FAILURE: Could not find SSL certificate message (SBP 3081) in the Skylark NTRIP stream."
-        send_slack_alert(channel="noc-alerts-test", message=message)
-        send_pager_duty_alert(message=message, severity="warning")
+            print("Certificate is valid and not expiring soon. No alert needed.")
 
     finally:
+        # Step 5: Clean up the log file
         if os.path.exists(LOG_FILE):
             os.remove(LOG_FILE)
             print(f"Cleaned up {LOG_FILE}.")
