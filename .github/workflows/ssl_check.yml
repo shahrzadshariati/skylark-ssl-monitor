@@ -25,6 +25,11 @@ jobs:
         python -m pip install --upgrade pip
         pip install requests sbp
 
+    # --- NEW DEBUGGING STEP ---
+    # This step will find the exact location of the ntripping command.
+    - name: Find SBP executables
+      run: which ntripping
+
     - name: Run SSL Check Script
       env:
         SKYLARK_USERNAME: ${{ secrets.SKYLARK_USERNAME }}
