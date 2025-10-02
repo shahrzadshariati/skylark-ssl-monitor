@@ -1,25 +1,17 @@
 import sys
 import os
 
-# --- THE DEFINITIVE FIX ---
-# We have proven that the library is installed, but the script can't find it.
-# This code manually adds the known installation directory to Python's search path,
-# solving the environment issue for good.
+# --- This fix ensures the script can find the installed SBP library ---
 site_packages_path = '/opt/hostedtoolcache/Python/3.11.13/x64/lib/python3.11/site-packages'
 if site_packages_path not in sys.path:
     sys.path.append(site_packages_path)
-
-# --- Original Debugging Code (can be removed later) ---
-print("--- Python Sys Path (after fix) ---")
-print(sys.path)
-print("-----------------------------------")
 
 try:
     from sbp.client.drivers.network_client import NetworkClient
     from sbp.integrity import MsgSsrCertificate
 except ImportError:
+    # This should not happen with the path fix, but is kept as a safeguard.
     print("Error: The 'sbp' library is not installed. Please run 'pip install sbp'.")
-    # This should no longer happen with the path fix above.
     sys.exit(1)
 
 import datetime
@@ -111,7 +103,6 @@ def main():
         days_until_expiry = (exp_date - current_date).days
 
         print(f"Certificate expires on: {exp_date.isoformat()}")
-        print(f"Current date is: {current_date.isoformat()}")
         print(f"Days until expiry: {days_until_expiry}")
 
         if days_until_expiry <= 0:
