@@ -20,15 +20,10 @@ jobs:
       with:
         python-version: '3.11'
 
-    - name: Install Python dependencies and SBP suite
+    - name: Install Python dependencies
       run: |
         python -m pip install --upgrade pip
         pip install requests sbp
-
-    # --- NEW DEBUGGING STEP ---
-    # This step will find the exact location of the ntripping command.
-    - name: Find SBP executables
-      run: which ntripping
 
     - name: Run SSL Check Script
       env:
