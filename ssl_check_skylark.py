@@ -8,7 +8,8 @@ from datetime import datetime, timedelta, timezone
 SKYLARK_URL = "https://eu.l1l2.skylark.swiftnav.com:2102/SSR-integrity"
 SKYLARK_LAT = 52.149
 SKYLARK_LON = 13.096
-NTRIP_TIMEOUT_SECONDS = 20  # Time to run the ntrip command
+# --- THIS IS THE LINE WE ARE CHANGING ---
+NTRIP_TIMEOUT_SECONDS = 90  # Increased from 20 to 90 seconds
 LOG_FILE = "log.rtcm.json"
 ALERT_THRESHOLD_DAYS = 30
 PAGER_THRESHOLD_DAYS = 7
