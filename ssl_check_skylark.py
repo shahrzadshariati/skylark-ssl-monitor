@@ -8,7 +8,6 @@ from datetime import datetime, timedelta, timezone
 SKYLARK_URL = "https://eu.l1l2.skylark.swiftnav.com:2102/SSR-integrity"
 SKYLARK_LAT = 52.149
 SKYLARK_LON = 13.096
-# --- THIS IS THE LINE WE ARE CHANGING ---
 NTRIP_TIMEOUT_SECONDS = 90  # Increased from 20 to 90 seconds
 LOG_FILE = "log.rtcm.json"
 ALERT_THRESHOLD_DAYS = 30
@@ -169,11 +168,11 @@ def main():
             send_slack_alert(channel="noc-alerts-test", message=message)
             send_pager_duty_alert(message=message, severity="critical")
         elif days_until_expiry <= PAGER_THRESHOLD_DAYS:
-            message = f"🔥 PAGER ALERT: Skylark SSL certificate expires in {days_until_expiry} days on {exp_date.strftime('%Y-%m-%d')}."
+            message = f"🔥 PAGER ALERT: Certificate expiration to expire in {days_until_expiry} days."
             send_slack_alert(channel="noc-alerts-test", message=message)
             send_pager_duty_alert(message=message, severity="critical")
         elif days_until_expiry <= ALERT_THRESHOLD_DAYS:
-            message = f"⚠️ WARNING: Skylark SSL certificate expires in {days_until_expiry} days on {exp_date.strftime('%Y-%m-%d')}."
+            message = f"⚠️ WARNING: Certificate expiration to expire in {days_until_expiry} days."
             send_slack_alert(channel="noc-alerts-test", message=message)
         else:
             print("Certificate is valid and not expiring soon. No alert needed.")
