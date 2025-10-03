@@ -1,16 +1,11 @@
 import sys
 import os
 
-# --- This fix ensures the script can find the installed SBP library ---
-site_packages_path = '/opt/hostedtoolcache/Python/3.11.13/x64/lib/python3.11/site-packages'
-if site_packages_path not in sys.path:
-    sys.path.append(site_packages_path)
-
 try:
     from sbp.client.drivers.network_client import NetworkClient
     from sbp.integrity import MsgSsrCertificate
 except ImportError:
-    # This should not happen with the path fix, but is kept as a safeguard.
+    # This should not happen when run inside the virtual environment.
     print("Error: The 'sbp' library is not installed. Please run 'pip install sbp'.")
     sys.exit(1)
 
@@ -127,4 +122,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
 
