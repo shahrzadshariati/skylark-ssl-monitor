@@ -31,5 +31,7 @@ jobs:
         source venv/bin/activate
         python3 -m pip install --upgrade pip
         python3 -m pip install requests sbp
-        python3 ssl_check_skylark.py
+        venv/bin/python3 ssl_check_skylark.py
+
+
 
