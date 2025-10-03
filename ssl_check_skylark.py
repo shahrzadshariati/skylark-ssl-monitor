@@ -1,13 +1,14 @@
 import os
 import sys
+import base64
 from datetime import datetime, timezone
 import requests
-import json
 from sbp.client.drivers.network_drivers import TCPDriver
 
 # --- Configuration ---
 SKYLARK_HOST = "eu.l1l2.skylark.swiftnav.com"
 SKYLARK_PORT = 2101
+SKYLARK_MOUNTPOINT = "/SSR-integrity"
 MSG_CERT_CHAIN_TYPE = 3081
 EXPIRATION_THRESHOLD_DAYS = 30
 
@@ -57,17 +58,26 @@ def check_certificate():
     Connects to Skylark, finds the certificate chain message,
     and checks its expiration date.
     """
-    driver = TCPDriver(
-        SKYLARK_HOST,
-        SKYLARK_PORT,
-        ntrip_user=f"{SKYLARK_USERNAME}:{SKYLARK_PASSWORD}",
-        ntrip_mount="/SSR-integrity",
-    )
-    
+    # Step 1: Create the driver with only the host and port
+    driver = TCPDriver(SKYLARK_HOST, SKYLARK_PORT)
     print(f"Connecting to Skylark at {SKYLARK_HOST}:{SKYLARK_PORT}...")
-    
+
     try:
-        # Iterate through the messages directly from the driver
+        # Step 2: Manually perform the NTRIP handshake
+        creds = f"{SKYLARK_USERNAME}:{SKYLARK_PASSWORD}".encode("ascii")
+        auth_header = b"Authorization: Basic " + base64.b64encode(creds)
+        
+        request = (
+            f"GET {SKYLARK_MOUNTPOINT} HTTP/1.1\r\n"
+            f"Host: {SKYLARK_HOST}\r\n"
+            "Ntrip-Version: Ntrip/2.0\r\n"
+            "User-Agent: SBP-Python-Client/1.0\r\n"
+        ).encode("ascii") + auth_header + b"\r\n\r\n"
+
+        print("Sending NTRIP authentication request...")
+        driver.write(request)
+
+        # Step 3: Iterate through messages from the driver
         for msg, _ in driver.messages:
             if msg.msg_type == MSG_CERT_CHAIN_TYPE:
                 print("Found Certificate Chain message (SBP 3081).")
