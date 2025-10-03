@@ -18,27 +18,32 @@ jobs:
       with:
         python-version: '3.11'
 
-    - name: Create Venv, Install, Verify, and Run Script
+    - name: Create Venv and Install Dependencies
+      run: |
+        python3 -m venv venv
+        source venv/bin/activate
+        python3 -m pip install --upgrade pip
+        python3 -m pip install -r requirements.txt
+
+    - name: Inspect Library Structure # <-- THIS IS THE NEW DEBUGGING STEP
+      run: |
+        source venv/bin/activate
+        echo "--- Finding location of 'sbp' package ---"
+        # Get the path where the 'sbp' library was installed
+        SBP_PATH=$(python3 -c "import sbp; print(sbp.__path__[0])")
+        echo "SBP library installed at: $SBP_PATH"
+        echo "--- Listing contents of the 'sbp' package directory ---"
+        # List all files and directories within that path
+        ls -R $SBP_PATH
+
+    - name: Verify and Run Script
       env:
         SKYLARK_USERNAME: ${{ secrets.SKYLARK_USERNAME }}
         SKYLARK_PASSWORD: ${{ secrets.SKYLARK_PASSWORD }}
         SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         PAGERDUTY_ROUTING_KEY: ${{ secrets.PAGERDUTY_ROUTING_KEY }}
       run: |
-        # --- SETUP ---
-        echo "Step 1: Creating and activating virtual environment..."
-        python3 -m venv venv
         source venv/bin/activate
-
-        # --- INSTALLATION ---
-        echo "Step 2: Installing dependencies from requirements.txt..."
-        python3 -m pip install --upgrade pip
-        python3 -m pip install -r requirements.txt
-
-        # --- VERIFICATION ---
-        echo "Step 3: Verifying installation with a deep import..."
+        echo "--- Running verification and execution ---"
         python3 -c "from sbp.client.drivers.network_driver import TCPDriver; print('--- DEEP VERIFICATION SUCCESS ---')"
-        
-        # --- EXECUTION ---
-        echo "Step 4: Running the final script..."
         python3 ssl_check_skylark.py
