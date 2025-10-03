@@ -31,9 +31,9 @@ jobs:
         source venv/bin/activate
 
         # --- INSTALLATION ---
-        echo "Step 2: Installing dependencies with setuptools..."
+        echo "Step 2: Installing dependencies from requirements.txt..."
         python3 -m pip install --upgrade pip
-        python3 -m pip install requests sbp setuptools
+        python3 -m pip install -r requirements.txt
 
         # --- VERIFICATION ---
         echo "Step 3: Verifying installation with a deep import..."
@@ -42,4 +42,3 @@ jobs:
         # --- EXECUTION ---
         echo "Step 4: Running the final script..."
         python3 ssl_check_skylark.py
-
