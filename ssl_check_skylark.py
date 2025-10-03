@@ -58,12 +58,10 @@ def check_certificate():
     Connects to Skylark, finds the certificate chain message,
     and checks its expiration date.
     """
-    # Step 1: Create the driver with only the host and port
     driver = TCPDriver(SKYLARK_HOST, SKYLARK_PORT)
     print(f"Connecting to Skylark at {SKYLARK_HOST}:{SKYLARK_PORT}...")
 
     try:
-        # Step 2: Manually perform the NTRIP handshake
         creds = f"{SKYLARK_USERNAME}:{SKYLARK_PASSWORD}".encode("ascii")
         auth_header = b"Authorization: Basic " + base64.b64encode(creds)
         
@@ -77,8 +75,8 @@ def check_certificate():
         print("Sending NTRIP authentication request...")
         driver.write(request)
 
-        # Step 3: Iterate through messages from the driver
-        for msg, _ in driver.messages:
+        # CORRECTED: Loop directly over the driver object
+        for msg, _ in driver:
             if msg.msg_type == MSG_CERT_CHAIN_TYPE:
                 print("Found Certificate Chain message (SBP 3081).")
                 
@@ -107,13 +105,12 @@ def check_certificate():
                 else:
                     print("\nOK: Certificate expiration is within acceptable range.")
                 
-                return # We are done, exit the function.
+                return
 
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
         sys.exit(1)
     finally:
-        # This 'finally' block ensures the connection is always closed
         print("Closing connection.")
         driver.close()
 
