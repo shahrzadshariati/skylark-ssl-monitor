@@ -1,9 +1,11 @@
 import os
 import sys
+import time
 import base64
 from datetime import datetime, timezone
 import requests
 from sbp.client.drivers.network_drivers import TCPDriver
+from sbp.table import parser as sbp_parser # Import the SBP parser
 
 # --- Configuration ---
 SKYLARK_HOST = "eu.l1l2.skylark.swiftnav.com"
@@ -11,6 +13,7 @@ SKYLARK_PORT = 2101
 SKYLARK_MOUNTPOINT = "/SSR-integrity"
 MSG_CERT_CHAIN_TYPE = 3081
 EXPIRATION_THRESHOLD_DAYS = 30
+TIMEOUT_SECONDS = 30 # Max time to wait for the certificate message
 
 # --- Get credentials and keys from GitHub Secrets ---
 SKYLARK_USERNAME = os.environ.get("SKYLARK_USERNAME")
@@ -56,27 +59,37 @@ def send_pagerduty_alert(summary):
 def check_certificate():
     """
     Connects to Skylark, finds the certificate chain message,
-    and checks its expiration date.
+    and checks its expiration date with robust error handling.
     """
     driver = TCPDriver(SKYLARK_HOST, SKYLARK_PORT)
     print(f"Connecting to Skylark at {SKYLARK_HOST}:{SKYLARK_PORT}...")
 
     try:
+        # Step 1: Manually perform the NTRIP handshake
         creds = f"{SKYLARK_USERNAME}:{SKYLARK_PASSWORD}".encode("ascii")
         auth_header = b"Authorization: Basic " + base64.b64encode(creds)
-        
         request = (
             f"GET {SKYLARK_MOUNTPOINT} HTTP/1.1\r\n"
             f"Host: {SKYLARK_HOST}\r\n"
             "Ntrip-Version: Ntrip/2.0\r\n"
             "User-Agent: SBP-Python-Client/1.0\r\n"
         ).encode("ascii") + auth_header + b"\r\n\r\n"
-
         print("Sending NTRIP authentication request...")
         driver.write(request)
-
-        # CORRECTED: Loop directly over the driver object
-        for msg, _ in driver:
+        
+        # Step 2: NEW - Verify the NTRIP handshake was successful
+        response = driver.read(1024)
+        if b"ICY 200 OK" not in response:
+            print(f"NTRIP handshake failed. Server response: {response.decode('ascii', errors='ignore')}")
+            sys.exit(1)
+        print("NTRIP handshake successful.")
+        
+        # Step 3: NEW - Create a parser that reads from the driver
+        parser = sbp_parser(driver)
+        start_time = time.time()
+        
+        # Step 4: CORRECTED - Loop over the parser, not the driver
+        for msg in parser:
             if msg.msg_type == MSG_CERT_CHAIN_TYPE:
                 print("Found Certificate Chain message (SBP 3081).")
                 
@@ -105,7 +118,12 @@ def check_certificate():
                 else:
                     print("\nOK: Certificate expiration is within acceptable range.")
                 
-                return
+                return # We are done, exit the function.
+
+            # Step 5: NEW - Check for timeout
+            if time.time() - start_time > TIMEOUT_SECONDS:
+                print(f"Timeout: Did not receive certificate message within {TIMEOUT_SECONDS} seconds.")
+                sys.exit(1)
 
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
