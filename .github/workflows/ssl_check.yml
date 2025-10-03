@@ -18,20 +18,18 @@ jobs:
       with:
         python-version: '3.11'
 
-    - name: Create virtual environment
-      run: python3 -m venv venv
-
-    - name: Install dependencies and run script
+    - name: Create Venv, Install Dependencies, and Run Script
       env:
         SKYLARK_USERNAME: ${{ secrets.SKYLARK_USERNAME }}
         SKYLARK_PASSWORD: ${{ secrets.SKYLARK_PASSWORD }}
         SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         PAGERDUTY_ROUTING_KEY: ${{ secrets.PAGERDUTY_ROUTING_KEY }}
       run: |
+        python3 -m venv venv
         source venv/bin/activate
         python3 -m pip install --upgrade pip
         python3 -m pip install requests sbp
-        venv/bin/python3 ssl_check_skylark.py
+        python3 ssl_check_skylark.py
 
 
 
