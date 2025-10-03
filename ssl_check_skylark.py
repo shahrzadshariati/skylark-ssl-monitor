@@ -31,8 +31,8 @@ PAGERDUTY_ROUTING_KEY = os.environ.get("PAGERDUTY_ROUTING_KEY")
 # --- Helper Functions ---
 def send_slack_alert(channel: str, message: str):
     """Sends a message to a Slack channel using an incoming webhook."""
-    if not SLACK_WEBHOOK_URL:
-        print("WARNING: SLACK_WEBHOOK_URL is not set. Cannot send Slack alert.")
+    if not SLACK_WEBHOOK_URL or "placeholder" in SLACK_WEBHOOK_URL:
+        print(f"INFO: SLACK_WEBHOOK_URL is not set. Would have sent: {message}")
         return
     try:
         import requests
@@ -45,8 +45,8 @@ def send_slack_alert(channel: str, message: str):
 
 def send_pager_duty_alert(message: str, severity: str = "critical"):
     """Sends an alert to PagerDuty using the Events API v2."""
-    if not PAGERDUTY_ROUTING_KEY:
-        print("WARNING: PAGERDUTY_ROUTING_KEY is not set. Cannot send PagerDuty alert.")
+    if not PAGERDUTY_ROUTING_KEY or "placeholder" in PAGERDUTY_ROUTING_KEY:
+        print(f"INFO: PAGERDUTY_ROUTING_KEY is not set. Would have sent: {message}")
         return
     try:
         import requests
@@ -74,19 +74,15 @@ def get_certificate_message(timeout: int = 90):
     try:
         with TCPDriver(full_url) as driver:
             with Framer(driver.read, driver.write) as framer:
-                # Use a list to store the message from the inner scope
                 message_holder = []
                 
                 def callback(msg, **metadata):
                     if msg.msg_type == SBP_MSG_CERTIFICATE_CHAIN:
                         message_holder.append(msg)
-                        # Stop the handler once we have the message
                         raise StopIteration
 
                 handler = Handler(framer)
                 handler.add_callback(callback)
-                
-                # Start the handler in a thread and wait for timeout or StopIteration
                 handler.start()
                 handler.join(timeout=timeout)
 
@@ -106,17 +102,14 @@ def get_certificate_message(timeout: int = 90):
 
 def main():
     """Main function to run the SSL check."""
-    # 1. Get the certificate message from Skylark
     cert_msg = get_certificate_message()
 
-    # 2. Check if we received the message
     if not cert_msg:
-        error_message = "SCRIPT ERROR: Could not find certificate message in the data stream after 90 seconds."
+        error_message = "SCRIPT ERROR: Could not find certificate message (SBP 3081) in the data stream after 90 seconds."
         print(error_message)
         send_slack_alert(channel="noc-alerts-test", message=error_message)
         sys.exit(1)
 
-    # 3. Extract and parse the expiration date
     try:
         exp = cert_msg.expiration
         exp_date = datetime(
@@ -139,7 +132,6 @@ def main():
     print(f"Certificate expiration date (UTC): {exp_date.isoformat()}")
     print(f"Days until expiry: {days_until_expiry}")
 
-    # 4. Compare dates and send alerts if necessary
     if days_until_expiry <= 0:
         message = f"🔥 PAGER ALERT: Certificate has EXPIRED! Expired {abs(days_until_expiry)} days ago."
         send_slack_alert(channel="noc-alerts-test", message=message)
