@@ -1,151 +1,45 @@
-import os
-import sys
-import json
-from datetime import datetime, timezone
+name: Daily Skylark SSL Certificate Check
 
-# --- Configuration ---
-# Import SBP library, fail gracefully if not installed.
-try:
-    from sbp.client.drivers.network_driver import TCPDriver
-    from sbp.client import Framer, Handler
-    from sbp.msg import SBP_MSG_CERTIFICATE_CHAIN
-except ImportError:
-    print("Error: The 'sbp' library is not installed. Please run 'pip install sbp'.")
-    sys.exit(1)
+on:
+  schedule:
+    - cron: '0 8 * * *'
+  workflow_dispatch:
 
-# Alerting thresholds (in days)
-ALERT_THRESHOLD_DAYS = 30
-PAGER_THRESHOLD_DAYS = 7
+jobs:
+  check-certificate:
+    runs-on: ubuntu-latest
 
-# Skylark endpoint details (read from environment variables for security)
-SKYLARK_URL = "eu.l1l2.skylark.swiftnav.com"
-SKYLARK_PORT = 2102
-SKYLARK_USERNAME = os.environ.get("SKYLARK_USERNAME")
-SKYLARK_PASSWORD = os.environ.get("SKYLARK_PASSWORD")
-STREAM_NAME = "/SSR-integrity"
+    steps:
+    - name: Check out repository
+      uses: actions/checkout@v4
 
-# Webhook URLs (read from environment variables)
-SLACK_WEBHOOK_URL = os.environ.get("SLACK_WEBHOOK_URL")
-PAGERDUTY_ROUTING_KEY = os.environ.get("PAGERDUTY_ROUTING_KEY")
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
 
-# --- Helper Functions ---
-def send_slack_alert(channel: str, message: str):
-    """Sends a message to a Slack channel using an incoming webhook."""
-    if not SLACK_WEBHOOK_URL or "placeholder" in SLACK_WEBHOOK_URL:
-        print(f"INFO: SLACK_WEBHOOK_URL is not set. Would have sent: {message}")
-        return
-    try:
-        import requests
-        payload = {"channel": f"#{channel}", "text": message}
-        response = requests.post(SLACK_WEBHOOK_URL, json=payload)
-        response.raise_for_status()
-        print(f"Successfully sent Slack alert to #{channel}.")
-    except Exception as e:
-        print(f"ERROR: Failed to send Slack alert: {e}")
+    - name: Create Venv, Install, Verify, and Run Script
+      env:
+        SKYLARK_USERNAME: ${{ secrets.SKYLARK_USERNAME }}
+        SKYLARK_PASSWORD: ${{ secrets.SKYLARK_PASSWORD }}
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        PAGERDUTY_ROUTING_KEY: ${{ secrets.PAGERDUTY_ROUTING_KEY }}
+      run: |
+        # --- SETUP ---
+        echo "Step 1: Creating and activating virtual environment..."
+        python3 -m venv venv
+        source venv/bin/activate
 
-def send_pager_duty_alert(message: str, severity: str = "critical"):
-    """Sends an alert to PagerDuty using the Events API v2."""
-    if not PAGERDUTY_ROUTING_KEY or "placeholder" in PAGERDUTY_ROUTING_KEY:
-        print(f"INFO: PAGERDUTY_ROUTING_KEY is not set. Would have sent: {message}")
-        return
-    try:
-        import requests
-        payload = {
-            "routing_key": PAGERDUTY_ROUTING_KEY,
-            "event_action": "trigger",
-            "payload": {
-                "summary": message,
-                "source": "skylark-ssl-monitor",
-                "severity": severity,
-            },
-        }
-        response = requests.post("https://events.pagerduty.com/v2/event", json=payload)
-        response.raise_for_status()
-        print("Successfully sent PagerDuty alert.")
-    except Exception as e:
-        print(f"ERROR: Failed to send PagerDuty alert: {e}")
+        # --- INSTALLATION ---
+        echo "Step 2: Installing dependencies with setuptools..."
+        python3 -m pip install --upgrade pip
+        python3 -m pip install requests sbp setuptools
 
-def get_certificate_message(timeout: int = 90):
-    """Connects to Skylark and waits for the certificate message."""
-    full_url = f"{SKYLARK_USERNAME}:{SKYLARK_PASSWORD}@{SKYLARK_URL}:{SKYLARK_PORT}{STREAM_NAME}"
-    cert_message = None
-
-    print(f"Starting NTRIP connection for {timeout} seconds...")
-    try:
-        with TCPDriver(full_url) as driver:
-            with Framer(driver.read, driver.write) as framer:
-                message_holder = []
-                
-                def callback(msg, **metadata):
-                    if msg.msg_type == SBP_MSG_CERTIFICATE_CHAIN:
-                        message_holder.append(msg)
-                        raise StopIteration
-
-                handler = Handler(framer)
-                handler.add_callback(callback)
-                handler.start()
-                handler.join(timeout=timeout)
-
-                if message_holder:
-                    cert_message = message_holder[0]
-                    
-    except StopIteration:
-        print("Successfully received certificate message.")
-    except Exception as e:
-        print(f"ERROR during NTRIP connection: {e}")
-        return None
-    finally:
-        print("NTRIP connection terminated.")
-
-    return cert_message
-
-
-def main():
-    """Main function to run the SSL check."""
-    cert_msg = get_certificate_message()
-
-    if not cert_msg:
-        error_message = "SCRIPT ERROR: Could not find certificate message (SBP 3081) in the data stream after 90 seconds."
-        print(error_message)
-        send_slack_alert(channel="noc-alerts-test", message=error_message)
-        sys.exit(1)
-
-    try:
-        exp = cert_msg.expiration
-        exp_date = datetime(
-            year=exp.year,
-            month=exp.month,
-            day=exp.day,
-            hour=exp.hours,
-            minute=exp.minutes,
-            second=exp.seconds,
-            tzinfo=timezone.utc,
-        )
-        current_date = datetime.now(timezone.utc)
-        days_until_expiry = (exp_date - current_date).days
-    except Exception as e:
-        error_message = f"SCRIPT ERROR: Could not parse expiration date from certificate message. Error: {e}"
-        print(error_message)
-        send_slack_alert(channel="noc-alerts-test", message=error_message)
-        sys.exit(1)
+        # --- VERIFICATION ---
+        echo "Step 3: Verifying installation with a deep import..."
+        python3 -c "from sbp.client.drivers.network_driver import TCPDriver; print('--- DEEP VERIFICATION SUCCESS ---')"
         
-    print(f"Certificate expiration date (UTC): {exp_date.isoformat()}")
-    print(f"Days until expiry: {days_until_expiry}")
-
-    if days_until_expiry <= 0:
-        message = f"🔥 PAGER ALERT: Certificate has EXPIRED! Expired {abs(days_until_expiry)} days ago."
-        send_slack_alert(channel="noc-alerts-test", message=message)
-        send_pager_duty_alert(message=message, severity="critical")
-    elif days_until_expiry <= PAGER_THRESHOLD_DAYS:
-        message = f"🔥 PAGER ALERT: Certificate expiration to expire in {days_until_expiry} days."
-        send_slack_alert(channel="noc-alerts-test", message=message)
-        send_pager_duty_alert(message=message, severity="critical")
-    elif days_until_expiry <= ALERT_THRESHOLD_DAYS:
-        message = f"⚠️ WARNING: Certificate expiration to expire in {days_until_expiry} days."
-        send_slack_alert(channel="noc-alerts-test", message=message)
-    else:
-        print("Certificate is valid and not expiring soon. No alert needed.")
-
-if __name__ == "__main__":
-    main()
+        # --- EXECUTION ---
+        echo "Step 4: Running the final script..."
+        python3 ssl_check_skylark.py
 
