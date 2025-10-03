@@ -1,5 +1,3 @@
-# .github/workflows/ssl_check.yml
-
 name: Daily Skylark SSL Certificate Check
 
 on:
@@ -20,20 +18,16 @@ jobs:
       with:
         python-version: '3.11'
 
-    - name: Install Python dependencies
+    - name: Create and activate virtual environment
       run: |
+        python3 -m venv venv
+        source venv/bin/activate
+        
+    - name: Install dependencies in virtual environment
+      run: |
+        source venv/bin/activate
         python3 -m pip install --upgrade pip
-        python3 -m pip install --no-cache-dir requests sbp
-
-    # --- NEW DEBUGGING STEP ADDED ---
-    # This step will show us exactly what packages are installed before running the script.
-    - name: Verify Installation
-      run: |
-        echo "--- Verifying Python and Pip paths ---"
-        which python3
-        which pip
-        echo "--- Listing installed packages ---"
-        python3 -m pip list
+        python3 -m pip install requests sbp
 
     - name: Run SSL Check Script
       env:
@@ -41,5 +35,8 @@ jobs:
         SKYLARK_PASSWORD: ${{ secrets.SKYLARK_PASSWORD }}
         SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         PAGERDUTY_ROUTING_KEY: ${{ secrets.PAGERDUTY_ROUTING_KEY }}
-      run: python3 ssl_check_skylark.py
+      run: |
+        source venv/bin/activate
+        python3 ssl_check_skylark.py
+
 
