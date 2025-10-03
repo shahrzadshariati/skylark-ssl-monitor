@@ -5,7 +5,7 @@ import base64
 from datetime import datetime, timezone
 import requests
 from sbp.client.drivers.network_drivers import TCPDriver
-from sbp.parser import Parser # CORRECTED: Import Parser from sbp.parser
+from sbp.table import Parser # CORRECTED: Import 'Parser' (capital P) from sbp.table
 
 # --- Configuration ---
 SKYLARK_HOST = "eu.l1l2.skylark.swiftnav.com"
@@ -21,8 +21,9 @@ SKYLARK_PASSWORD = os.environ.get("SKYLARK_PASSWORD")
 SLACK_WEBHOOK_URL = os.environ.get("SLACK_WEBHOOK_URL")
 PAGERDUTY_ROUTING_KEY = os.environ.get("PAGERDUTY_ROUTING_KEY")
 
+# ... (The send_slack_alert and send_pagerduty_alert functions remain the same) ...
+
 def send_slack_alert(message):
-    """Sends a formatted message to a Slack webhook."""
     if not SLACK_WEBHOOK_URL:
         print("Slack webhook URL not found. Skipping alert.")
         return
@@ -34,7 +35,6 @@ def send_slack_alert(message):
         print(f"Error sending Slack alert: {e}")
 
 def send_pagerduty_alert(summary):
-    """Sends an alert to PagerDuty."""
     if not PAGERDUTY_ROUTING_KEY:
         print("PagerDuty routing key not found. Skipping alert.")
         return
@@ -54,13 +54,9 @@ def send_pagerduty_alert(summary):
         response.raise_for_status()
         print("PagerDuty alert sent successfully.")
     except Exception as e:
-        print(f"Error sending PagerDuty alert: {e}")
+        print(f"Error sending Pagerduty alert: {e}")
 
 def check_certificate():
-    """
-    Connects to Skylark, finds the certificate chain message,
-    and checks its expiration date with robust error handling.
-    """
     driver = TCPDriver(SKYLARK_HOST, SKYLARK_PORT)
     print(f"Connecting to Skylark at {SKYLARK_HOST}:{SKYLARK_PORT}...")
 
@@ -82,7 +78,6 @@ def check_certificate():
             sys.exit(1)
         print("NTRIP handshake successful.")
         
-        # CORRECTED: Create an instance of the imported Parser
         parser = Parser(driver)
         start_time = time.time()
         
