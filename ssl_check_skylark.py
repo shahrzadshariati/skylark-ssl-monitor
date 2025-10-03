@@ -5,7 +5,7 @@ import base64
 from datetime import datetime, timezone
 import requests
 from sbp.client.drivers.network_drivers import TCPDriver
-from sbp.table import parser as sbp_parser # Import the SBP parser
+from sbp.parser import Parser # CORRECTED: Import Parser from sbp.parser
 
 # --- Configuration ---
 SKYLARK_HOST = "eu.l1l2.skylark.swiftnav.com"
@@ -65,7 +65,6 @@ def check_certificate():
     print(f"Connecting to Skylark at {SKYLARK_HOST}:{SKYLARK_PORT}...")
 
     try:
-        # Step 1: Manually perform the NTRIP handshake
         creds = f"{SKYLARK_USERNAME}:{SKYLARK_PASSWORD}".encode("ascii")
         auth_header = b"Authorization: Basic " + base64.b64encode(creds)
         request = (
@@ -77,18 +76,16 @@ def check_certificate():
         print("Sending NTRIP authentication request...")
         driver.write(request)
         
-        # Step 2: NEW - Verify the NTRIP handshake was successful
         response = driver.read(1024)
         if b"ICY 200 OK" not in response:
             print(f"NTRIP handshake failed. Server response: {response.decode('ascii', errors='ignore')}")
             sys.exit(1)
         print("NTRIP handshake successful.")
         
-        # Step 3: NEW - Create a parser that reads from the driver
-        parser = sbp_parser(driver)
+        # CORRECTED: Create an instance of the imported Parser
+        parser = Parser(driver)
         start_time = time.time()
         
-        # Step 4: CORRECTED - Loop over the parser, not the driver
         for msg in parser:
             if msg.msg_type == MSG_CERT_CHAIN_TYPE:
                 print("Found Certificate Chain message (SBP 3081).")
@@ -118,9 +115,8 @@ def check_certificate():
                 else:
                     print("\nOK: Certificate expiration is within acceptable range.")
                 
-                return # We are done, exit the function.
+                return
 
-            # Step 5: NEW - Check for timeout
             if time.time() - start_time > TIMEOUT_SECONDS:
                 print(f"Timeout: Did not receive certificate message within {TIMEOUT_SECONDS} seconds.")
                 sys.exit(1)
