@@ -5,7 +5,7 @@ try:
     from sbp.client.drivers.network_client import NetworkClient
     from sbp.integrity import MsgSsrCertificate
 except ImportError:
-    # This should not happen when run inside the virtual environment.
+    # This error should not be reached when the script is run correctly within the virtual environment.
     print("Error: The 'sbp' library is not installed. Please run 'pip install sbp'.")
     sys.exit(1)
 
@@ -122,6 +122,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
 
