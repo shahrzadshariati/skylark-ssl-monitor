@@ -18,7 +18,7 @@ jobs:
       with:
         python-version: '3.11'
 
-    - name: Create and activate virtual environment
+    - name: Create virtual environment
       run: python3 -m venv venv
 
     - name: Install dependencies in virtual environment
@@ -33,7 +33,5 @@ jobs:
         SKYLARK_PASSWORD: ${{ secrets.SKYLARK_PASSWORD }}
         SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         PAGERDUTY_ROUTING_KEY: ${{ secrets.PAGERDUTY_ROUTING_KEY }}
-      run: |
-        source venv/bin/activate
-        python3 ssl_check_skylark.py
+      run: venv/bin/python ssl_check_skylark.py
 
