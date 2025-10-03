@@ -14,22 +14,47 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Set up Python 3.11
+      id: setup_python # Give this step an ID to reference its output
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
 
-    - name: Create Venv, Install Dependencies, and Run Script
+    - name: Create Venv, Install, Verify, and Run Script
       env:
         SKYLARK_USERNAME: ${{ secrets.SKYLARK_USERNAME }}
         SKYLARK_PASSWORD: ${{ secrets.SKYLARK_PASSWORD }}
         SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         PAGERDUTY_ROUTING_KEY: ${{ secrets.PAGERDUTY_ROUTING_KEY }}
       run: |
-        python3 -m venv venv
+        # --- PREPARATION ---
+        echo "Step 1: Using Python from this exact path: ${{ steps.setup_python.outputs.python-path }}"
+        PYTHON_EXEC="${{ steps.setup_python.outputs.python-path }}"
+
+        # --- ENVIRONMENT SETUP ---
+        echo "Step 2: Creating virtual environment..."
+        $PYTHON_EXEC -m venv venv
+        
+        echo "Step 3: Activating virtual environment..."
         source venv/bin/activate
+        
+        # --- DEPENDENCY INSTALLATION ---
+        echo "Step 4: Upgrading pip within the virtual environment..."
         python3 -m pip install --upgrade pip
+        
+        echo "Step 5: Installing dependencies into the virtual environment..."
         python3 -m pip install requests sbp
+
+        # --- VERIFICATION (CRUCIAL DEBUGGING STEP) ---
+        echo "Step 6: Verifying installed packages with 'pip list'..."
+        python3 -m pip list
+
+        echo "Step 7: Verifying 'sbp' can be imported by Python..."
+        python3 -c "import sbp; print('--- VERIFICATION SUCCESS: sbp library was imported successfully. ---')"
+
+        # --- SCRIPT EXECUTION ---
+        echo "Step 8: Running the final Python script..."
         python3 ssl_check_skylark.py
+
 
 
 
