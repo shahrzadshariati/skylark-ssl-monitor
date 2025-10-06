@@ -14,7 +14,8 @@ SKYLARK_PORT = 2101
 SKYLARK_MOUNTPOINT = "/SSR-integrity"
 MSG_CERT_CHAIN_TYPE = 3081
 EXPIRATION_THRESHOLD_DAYS = 30
-RECORDING_DURATION_SECONDS = 60 # Record data for 1 minute
+# CHANGE 1: Increased recording duration from 60 to 120 seconds.
+RECORDING_DURATION_SECONDS = 120
 DATA_FILENAME = "skylark_data.sbp" # Temporary file to store data
 
 # --- Get credentials and keys from GitHub Secrets ---
@@ -97,9 +98,10 @@ def run_check():
     cert_found = False
     try:
         with open(DATA_FILENAME, "rb") as f:
-            # THIS IS THE FINAL FIX: Pass the file's read method 'f.read' instead of the file object 'f'.
             framer = Framer(f.read, write=None)
             for msg in framer:
+                # CHANGE 2: Added this debug line to print every message type found.
+                print(f"DEBUG: Found message with type: {msg.msg_type}")
                 if msg.msg_type == MSG_CERT_CHAIN_TYPE:
                     cert_found = True
                     print("✅ Found Certificate Chain message (SBP 3081).")
