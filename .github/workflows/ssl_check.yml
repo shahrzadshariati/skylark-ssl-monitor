@@ -18,7 +18,6 @@ jobs:
       with:
         python-version: '3.11'
 
-    # NEW STEP: Clone the sbp library source code directly
     - name: Clone SBP Library
       run: git clone https://github.com/swift-nav/libsbp.git
 
@@ -32,8 +31,8 @@ jobs:
     - name: Capture Skylark Stream and Convert to JSON
       run: |
         source venv/bin/activate
-        # Add the cloned sbp library's Python code to the search path
-        export PYTHONPATH=$PYTHONPATH:./libsbp/python
+        # THIS IS THE FINAL FIX: Use the absolute path to the cloned library.
+        export PYTHONPATH=$PYTHONPATH:$GITHUB_WORKSPACE/libsbp/python
         
         # Now run the tools as Python modules
         timeout 60s python -m sbp.client.tools.ntrip_client \
