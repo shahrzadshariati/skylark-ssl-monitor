@@ -11,7 +11,8 @@ from sbp.client.framer import Framer
 from sbp.client.drivers.network_drivers import TCPDriver
 
 # --- Configuration ---
-SKYLARK_HOST = "eu.l1l2.skylark.swiftnav.com"
+# THIS IS THE FINAL FIX: Use the direct IP address to bypass the DNS hang.
+SKYLARK_HOST = "54.155.112.136"
 SKYLARK_PORT = 2101
 SKYLARK_MOUNTPOINT = "/SSR-integrity"
 MSG_CERT_CHAIN_TYPE = 3081
@@ -20,6 +21,7 @@ RECORDING_DURATION_SECONDS = 120
 DATA_FILENAME = "skylark_data.sbp"
 
 # --- Get credentials and keys from GitHub Secrets ---
+# (The rest of the file is the same as the last version...)
 SKYLARK_USERNAME = os.environ.get("SKYLARK_USERNAME")
 SKYLARK_PASSWORD = os.environ.get("SKYLARK_PASSWORD")
 SLACK_WEBHOOK_URL = os.environ.get("SLACK_WEBHOOK_URL")
@@ -54,26 +56,20 @@ def send_pagerduty_alert(summary):
 def run_check():
     driver = None
     try:
-        # --- STAGE 1: CONNECT AND RECORD DATA ---
         print(f"--- STAGE 1 of 3: Connecting to {SKYLARK_HOST}:{SKYLARK_PORT} ---")
         driver = TCPDriver(SKYLARK_HOST, SKYLARK_PORT, timeout=20)
-        
         creds = f"{SKYLARK_USERNAME}:{SKYLARK_PASSWORD}".encode("ascii")
         auth_header = b"Authorization: Basic " + base64.b64encode(creds)
         request = (
-            f"GET {SKYLARK_MOUNTPOINT} HTTP/1.1\r\nHost: {SKYLARK_HOST}\r\n"
+            f"GET {SKYLARK_MOUNTPOINT} HTTP/1.1\r\nHost: eu.l1l2.skylark.swiftnav.com\r\n"
             "Ntrip-Version: Ntrip/2.0\r\nUser-Agent: SBP-Python-Client/1.0\r\n"
         ).encode("ascii") + auth_header + b"\r\n\r\n"
         driver.write(request)
-        
         response = driver.read(1024)
-        
         if b"200 OK" not in response:
             print(f"❌ FATAL ERROR: NTRIP handshake failed. Server response: {response.decode('ascii', errors='ignore')}")
             sys.exit(1)
         print("✅ STAGE 1 SUCCESS: Connection and NTRIP login successful.")
-
-        # --- STAGE 2: RECORD DATA TO A FILE ---
         print(f"--- STAGE 2 of 3: Recording data for {RECORDING_DURATION_SECONDS} seconds to '{DATA_FILENAME}' ---")
         start_time = time.time()
         bytes_written = 0
@@ -86,13 +82,11 @@ def run_check():
                         break
                     f.write(data)
                     bytes_written += len(data)
-                # THIS IS THE FINAL FIX: Catch both socket.timeout and OSError.
                 except (socket.timeout, OSError) as e:
                     print(f"DEBUG: Caught a recoverable network error ({type(e).__name__}), continuing to listen...")
-                    time.sleep(1) # Pause briefly before retrying
+                    time.sleep(1)
                     continue
         print(f"✅ STAGE 2 SUCCESS: Finished recording. Wrote {bytes_written} bytes.")
-
     except Exception:
         print(f"❌ FATAL ERROR during connection or recording:")
         traceback.print_exc()
@@ -101,8 +95,6 @@ def run_check():
         if driver:
             driver.close()
             print("INFO: Network connection closed.")
-
-    # --- STAGE 3: PARSE THE FILE AND CHECK THE CERTIFICATE ---
     print(f"--- STAGE 3 of 3: Analyzing '{DATA_FILENAME}' for certificate message ---")
     cert_found = False
     try:
@@ -113,16 +105,13 @@ def run_check():
                 if msg.msg_type == MSG_CERT_CHAIN_TYPE:
                     cert_found = True
                     print("✅ Found Certificate Chain message (SBP 3081).")
-                    
                     exp = msg.expiration
                     expiration_date = datetime(exp.year, exp.month, exp.day, exp.hour, exp.minute, exp.second, tzinfo=timezone.utc)
                     current_date = datetime.now(timezone.utc)
                     time_left = expiration_date - current_date
-                    
                     print(f"INFO: Certificate expires on: {expiration_date.isoformat()}")
                     print(f"INFO: Current date is:       {current_date.isoformat()}")
                     print(f"INFO: Time until expiration: {time_left.days} days")
-
                     if time_left.days < EXPIRATION_THRESHOLD_DAYS:
                         alert_message = (
                             f"Certificate expires in {time_left.days} days "
@@ -136,11 +125,9 @@ def run_check():
                     else:
                         print("✅ STAGE 3 SUCCESS: Certificate expiration is within acceptable range.")
                     break
-            
         if not cert_found:
             print(f"❌ FATAL ERROR: Ran successfully but did not find a certificate message (SBP 3081) in the recorded data.")
             sys.exit(1)
-
     except Exception:
         print(f"❌ FATAL ERROR during file parsing:")
         traceback.print_exc()
