@@ -29,13 +29,12 @@ jobs:
       run: |
         source venv/bin/activate
         # THIS IS THE FINAL FIX:
-        # Use the correct, hyphenated program names 'swift-ntripping' and 'swift-rtcm32json'.
-        # The 'source' command ensures they are in the shell's PATH.
-        timeout 60s swift-ntripping \
+        # We now use the full path to the executables inside the virtual environment.
+        timeout 60s ./venv/bin/swift-ntripping \
           --username ${{ secrets.SKYLARK_USERNAME }} \
           --password ${{ secrets.SKYLARK_PASSWORD }} \
           --url https://eu.l1l2.skylark.swiftnav.com:2101/SSR-integrity \
-          --lat 52.149 --lon 13.096 | swift-rtcm32json > log.json
+          --lat 52.149 --lon 13.096 | ./venv/bin/swift-rtcm32json > log.json
 
     - name: Check Certificate Expiration from JSON
       env:
