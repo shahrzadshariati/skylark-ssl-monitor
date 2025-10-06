@@ -4,8 +4,9 @@ import time
 import base64
 from datetime import datetime, timezone
 import requests
-import socket  # Import the socket library to handle network errors
-# The Framer is the correct class for parsing SBP message streams.
+import socket
+import traceback  # Import the traceback library for better error logging
+
 from sbp.client.framer import Framer
 from sbp.client.drivers.network_drivers import TCPDriver
 
@@ -77,7 +78,6 @@ def run_check():
         start_time = time.time()
         bytes_written = 0
         with open(DATA_FILENAME, "wb") as f:
-            # THIS IS THE NEW, MORE RESILIENT LOOP
             while time.time() - start_time < RECORDING_DURATION_SECONDS:
                 try:
                     data = driver.read(4096)
@@ -91,8 +91,10 @@ def run_check():
                     continue
         print(f"✅ STAGE 2 SUCCESS: Finished recording. Wrote {bytes_written} bytes.")
 
-    except Exception as e:
-        print(f"❌ FATAL ERROR during connection or recording: {e}")
+    # THIS IS THE MODIFIED ERROR HANDLER
+    except Exception:
+        print(f"❌ FATAL ERROR during connection or recording:")
+        traceback.print_exc()  # This will print the full error details.
         sys.exit(1)
     finally:
         if driver:
@@ -132,14 +134,16 @@ def run_check():
                         sys.exit(1)
                     else:
                         print("✅ STAGE 3 SUCCESS: Certificate expiration is within acceptable range.")
-                    break # Exit loop once certificate is found
+                    break
             
         if not cert_found:
             print(f"❌ FATAL ERROR: Ran successfully but did not find a certificate message (SBP 3081) in the recorded data.")
             sys.exit(1)
 
-    except Exception as e:
-        print(f"❌ FATAL ERROR during file parsing: {e}")
+    # THIS IS THE SECOND MODIFIED ERROR HANDLER
+    except Exception:
+        print(f"❌ FATAL ERROR during file parsing:")
+        traceback.print_exc() # This will print the full error details.
         sys.exit(1)
 
 if __name__ == "__main__":
