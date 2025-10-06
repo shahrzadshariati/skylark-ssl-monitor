@@ -1,4 +1,4 @@
-name: Daily Skylark Certificate Check
+name: Daily Skylark SSL Certificate Check
 
 on:
   schedule:
@@ -25,7 +25,7 @@ jobs:
         python3 -m pip install --upgrade pip
         python3 -m pip install -r requirements.txt
 
-    - name: Run Certificate Check Script
+    - name: Verify and Run Script
       env:
         SKYLARK_USERNAME: ${{ secrets.SKYLARK_USERNAME }}
         SKYLARK_PASSWORD: ${{ secrets.SKYLARK_PASSWORD }}
@@ -34,3 +34,4 @@ jobs:
       run: |
         source venv/bin/activate
         python3 ssl_check_skylark.py
+
