@@ -1,3 +1,5 @@
 requests
 # Install the Python SBP library directly from the Swift Navigation repo
-git+https://github.com/swift-nav/libsbp.git#subdirectory=python
+sbp[tools]
+#git+https://github.com/swift-nav/libsbp.git#subdirectory=python
+
