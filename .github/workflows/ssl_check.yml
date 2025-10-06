@@ -33,6 +33,10 @@ jobs:
         echo "--- Searching for 'class TCPDriver' inside the file: $TARGET_FILE ---"
         cat $TARGET_FILE | grep "class TCPDriver" || true
 
+    - name: Test Network Connectivity to Skylark run: |
+    echo "--- Attempting to connect to eu.l1l2.skylark.swiftnav.com on port 2101 ---"
+    nc -vz eu.l1l2.skylark.swiftnav.com 2101
+
     - name: Verify and Run Script
       # THIS 'env' BLOCK IS THE FIX.
       # It securely passes your GitHub Secrets to the Python script as environment variables.
