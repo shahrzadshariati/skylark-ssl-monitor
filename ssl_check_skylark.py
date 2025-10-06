@@ -98,7 +98,7 @@ def run_check():
     cert_found = False
     try:
         with open(DATA_FILENAME, "rb") as f:
-            framer = Framer(f) # Use the Framer to parse the file
+           framer = Framer(f, write=None) # Use the Framer to parse the file
             for msg in framer:
                 if msg.msg_type == MSG_CERT_CHAIN_TYPE:
                     cert_found = True
