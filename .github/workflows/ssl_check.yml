@@ -26,15 +26,15 @@ jobs:
         python3 -m venv venv
         source venv/bin/activate
         python3 -m pip install --upgrade pip
+        # First, install all other dependencies from the requirements file
         python3 -m pip install -r requirements.txt
+        # NOW, install the complete SBP library with tools from our local clone
+        python3 -m pip install ./libsbp/python[tools]
 
     - name: Capture Skylark Stream and Convert to JSON
       run: |
         source venv/bin/activate
-        # THIS IS THE FINAL FIX: Use the absolute path to the cloned library.
-        export PYTHONPATH=$PYTHONPATH:$GITHUB_WORKSPACE/libsbp/python
-        
-        # Now run the tools as Python modules
+        # The tools are now correctly installed in the venv, so this will work
         timeout 60s python -m sbp.client.tools.ntrip_client \
           --username ${{ secrets.SKYLARK_USERNAME }} \
           --password ${{ secrets.SKYLARK_PASSWORD }} \
