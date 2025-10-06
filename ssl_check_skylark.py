@@ -4,6 +4,7 @@ import time
 import base64
 from datetime import datetime, timezone
 import requests
+import socket  # Import the socket library to handle network errors
 # The Framer is the correct class for parsing SBP message streams.
 from sbp.client.framer import Framer
 from sbp.client.drivers.network_drivers import TCPDriver
@@ -14,9 +15,8 @@ SKYLARK_PORT = 2101
 SKYLARK_MOUNTPOINT = "/SSR-integrity"
 MSG_CERT_CHAIN_TYPE = 3081
 EXPIRATION_THRESHOLD_DAYS = 30
-# CHANGE 1: Increased recording duration from 60 to 120 seconds.
 RECORDING_DURATION_SECONDS = 120
-DATA_FILENAME = "skylark_data.sbp" # Temporary file to store data
+DATA_FILENAME = "skylark_data.sbp"
 
 # --- Get credentials and keys from GitHub Secrets ---
 SKYLARK_USERNAME = os.environ.get("SKYLARK_USERNAME")
@@ -77,12 +77,18 @@ def run_check():
         start_time = time.time()
         bytes_written = 0
         with open(DATA_FILENAME, "wb") as f:
+            # THIS IS THE NEW, MORE RESILIENT LOOP
             while time.time() - start_time < RECORDING_DURATION_SECONDS:
-                data = driver.read(4096)
-                if not data:
-                    break
-                f.write(data)
-                bytes_written += len(data)
+                try:
+                    data = driver.read(4096)
+                    if not data:
+                        print("INFO: Server closed the connection gracefully.")
+                        break
+                    f.write(data)
+                    bytes_written += len(data)
+                except socket.timeout:
+                    print("DEBUG: Read timed out, continuing to listen for data...")
+                    continue
         print(f"✅ STAGE 2 SUCCESS: Finished recording. Wrote {bytes_written} bytes.")
 
     except Exception as e:
@@ -100,7 +106,6 @@ def run_check():
         with open(DATA_FILENAME, "rb") as f:
             framer = Framer(f.read, write=None)
             for msg in framer:
-                # CHANGE 2: Added this debug line to print every message type found.
                 print(f"DEBUG: Found message with type: {msg.msg_type}")
                 if msg.msg_type == MSG_CERT_CHAIN_TYPE:
                     cert_found = True
