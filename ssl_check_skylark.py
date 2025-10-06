@@ -97,14 +97,34 @@ def run_check():
     cert_found = False
     try:
         with open(DATA_FILENAME, "rb") as f:
+            # THIS IS THE FINAL FIX: Pass the file's read method 'f.read' instead of the file object 'f'.
             framer = Framer(f.read, write=None)
             for msg in framer:
                 if msg.msg_type == MSG_CERT_CHAIN_TYPE:
                     cert_found = True
                     print("✅ Found Certificate Chain message (SBP 3081).")
                     
-                    # (Expiration checking logic would go here)
+                    exp = msg.expiration
+                    expiration_date = datetime(exp.year, exp.month, exp.day, exp.hour, exp.minute, exp.second, tzinfo=timezone.utc)
+                    current_date = datetime.now(timezone.utc)
+                    time_left = expiration_date - current_date
                     
+                    print(f"INFO: Certificate expires on: {expiration_date.isoformat()}")
+                    print(f"INFO: Current date is:       {current_date.isoformat()}")
+                    print(f"INFO: Time until expiration: {time_left.days} days")
+
+                    if time_left.days < EXPIRATION_THRESHOLD_DAYS:
+                        alert_message = (
+                            f"Certificate expires in {time_left.days} days "
+                            f"(on {expiration_date.strftime('%Y-%m-%d')}). "
+                            f"Threshold is {EXPIRATION_THRESHOLD_DAYS} days."
+                        )
+                        print(f"🚨 ALERT: {alert_message}")
+                        send_slack_alert(alert_message)
+                        send_pagerduty_alert(alert_message)
+                        sys.exit(1)
+                    else:
+                        print("✅ STAGE 3 SUCCESS: Certificate expiration is within acceptable range.")
                     break # Exit loop once certificate is found
             
         if not cert_found:
