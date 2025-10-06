@@ -23,7 +23,6 @@ SKYLARK_PASSWORD = os.environ.get("SKYLARK_PASSWORD")
 SLACK_WEBHOOK_URL = os.environ.get("SLACK_WEBHOOK_URL")
 PAGERDUTY_ROUTING_KEY = os.environ.get("PAGERDUTY_ROUTING_KEY")
 
-# ... (The send_slack_alert and send_pagerduty_alert functions remain the same) ...
 def send_slack_alert(message):
     if not SLACK_WEBHOOK_URL:
         print("INFO: Slack webhook URL not found. Skipping alert.")
@@ -56,7 +55,6 @@ def run_check():
         # --- STAGE 1: CONNECT AND RECORD DATA ---
         print(f"--- STAGE 1 of 3: Connecting to {SKYLARK_HOST}:{SKYLARK_PORT} ---")
         driver = TCPDriver(SKYLARK_HOST, SKYLARK_PORT, timeout=20)
-
         
         creds = f"{SKYLARK_USERNAME}:{SKYLARK_PASSWORD}".encode("ascii")
         auth_header = b"Authorization: Basic " + base64.b64encode(creds)
@@ -67,6 +65,7 @@ def run_check():
         driver.write(request)
         
         response = driver.read(1024)
+        
         if b"200 OK" not in response:
             print(f"❌ FATAL ERROR: NTRIP handshake failed. Server response: {response.decode('ascii', errors='ignore')}")
             sys.exit(1)
@@ -98,7 +97,8 @@ def run_check():
     cert_found = False
     try:
         with open(DATA_FILENAME, "rb") as f:
-           framer = Framer(f, write=None) # Use the Framer to parse the file
+            framer = Framer(f, write=None) # Use the Framer to parse the file
+            # THIS IS THE CORRECTED LINE - Indentation fixed
             for msg in framer:
                 if msg.msg_type == MSG_CERT_CHAIN_TYPE:
                     cert_found = True
@@ -126,7 +126,7 @@ def run_check():
                     else:
                         print("✅ STAGE 3 SUCCESS: Certificate expiration is within acceptable range.")
                     break # Exit loop once certificate is found
-        
+            
         if not cert_found:
             print(f"❌ FATAL ERROR: Ran successfully but did not find a certificate message (SBP 3081) in the recorded data.")
             sys.exit(1)
