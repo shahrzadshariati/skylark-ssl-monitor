@@ -25,6 +25,19 @@ jobs:
         python3 -m pip install --upgrade pip
         python3 -m pip install -r requirements.txt
 
+    - name: Look Inside File for TCPDriver
+      run: |
+        source venv/bin/activate
+        SBP_PATH=$(python3 -c "import sbp; print(sbp.__path__[0])")
+        TARGET_FILE="$SBP_PATH/client/drivers/network_drivers.py"
+        echo "--- Searching for 'class TCPDriver' inside the file: $TARGET_FILE ---"
+        cat $TARGET_FILE | grep "class TCPDriver" || true
+
+    - name: Test Network Connectivity to Skylark
+      run: |
+        echo "--- Attempting to connect to eu.l1l2.skylark.swiftnav.com on port 2101 ---"
+        nc -vz eu.l1l2.skylark.swiftnav.com 2101
+
     - name: Verify and Run Script
       env:
         SKYLARK_USERNAME: ${{ secrets.SKYLARK_USERNAME }}
@@ -33,5 +46,6 @@ jobs:
         PAGERDUTY_ROUTING_KEY: ${{ secrets.PAGERDUTY_ROUTING_KEY }}
       run: |
         source venv/bin/activate
+        echo "--- Running verification with corrected import path ---"
+        python3 -c "from sbp.client.drivers.network_drivers import TCPDriver; print('--- DEEP VERIFICATION SUCCESS ---')"
         python3 ssl_check_skylark.py
-
