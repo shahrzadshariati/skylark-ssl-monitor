@@ -18,6 +18,10 @@ jobs:
       with:
         python-version: '3.11'
 
+    # NEW STEP: Clone the sbp library source code directly
+    - name: Clone SBP Library
+      run: git clone https://github.com/swift-nav/libsbp.git
+
     - name: Create Venv and Install Dependencies
       run: |
         python3 -m venv venv
@@ -28,7 +32,10 @@ jobs:
     - name: Capture Skylark Stream and Convert to JSON
       run: |
         source venv/bin/activate
-        # THIS IS THE FINAL FIX: We run the tools as Python modules directly.
+        # Add the cloned sbp library's Python code to the search path
+        export PYTHONPATH=$PYTHONPATH:./libsbp/python
+        
+        # Now run the tools as Python modules
         timeout 60s python -m sbp.client.tools.ntrip_client \
           --username ${{ secrets.SKYLARK_USERNAME }} \
           --password ${{ secrets.SKYLARK_PASSWORD }} \
