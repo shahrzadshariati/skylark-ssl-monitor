@@ -97,8 +97,8 @@ def run_check():
     cert_found = False
     try:
         with open(DATA_FILENAME, "rb") as f:
-            framer = Framer(f, write=None) # Use the Framer to parse the file
-            # THIS IS THE CORRECTED LINE - Indentation fixed
+            # THIS IS THE FINAL FIX: Pass the file's read method 'f.read' instead of the file object 'f'.
+            framer = Framer(f.read, write=None)
             for msg in framer:
                 if msg.msg_type == MSG_CERT_CHAIN_TYPE:
                     cert_found = True
