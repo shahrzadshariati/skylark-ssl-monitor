@@ -1,6 +1,5 @@
-requests
-# Install the Python SBP library directly from the Swift Navigation repo
 
+# Install the Python SBP library directly from the Swift Navigation repo
 requests
 pyserial
 construct
@@ -8,5 +7,4 @@ pyftdi
 pylibftdi
 pyusb
 six
-
 
