@@ -55,7 +55,8 @@ def run_check():
     try:
         # --- STAGE 1: CONNECT AND RECORD DATA ---
         print(f"--- STAGE 1 of 3: Connecting to {SKYLARK_HOST}:{SKYLARK_PORT} ---")
-        driver = TCPDriver(SKYLARK_HOST, SKYLARK_PORT)
+        driver = TCPDriver(SKYLARK_HOST, SKYLARK_PORT, timeout=20)
+
         
         creds = f"{SKYLARK_USERNAME}:{SKYLARK_PASSWORD}".encode("ascii")
         auth_header = b"Authorization: Basic " + base64.b64encode(creds)
