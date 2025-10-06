@@ -1,10 +1,6 @@
 
 # Install the Python SBP library directly from the Swift Navigation repo
 requests
-pyserial
-construct
-pyftdi
-pylibftdi
-pyusb
-six
+git+https://github.com/swift-nav/libsbp.git#subdirectory=python
+
 
