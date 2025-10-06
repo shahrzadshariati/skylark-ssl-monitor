@@ -25,7 +25,6 @@ jobs:
         python3 -m pip install --upgrade pip
         python3 -m pip install -r requirements.txt
 
-    # THIS IS THE NEW STEP TO VERIFY THE FILES EXIST
     - name: Verify Swift Tools Installation
       run: |
         echo "--- Checking contents of venv/bin/ directory ---"
@@ -34,7 +33,7 @@ jobs:
     - name: Capture Skylark Stream and Convert to JSON
       run: |
         source venv/bin/activate
-        # We use the full path to the executables to avoid 'command not found' errors.
+        # Use the full path to the executables to avoid 'command not found' errors.
         timeout 60s ./venv/bin/swift-ntripping \
           --username ${{ secrets.SKYLARK_USERNAME }} \
           --password ${{ secrets.SKYLARK_PASSWORD }} \
