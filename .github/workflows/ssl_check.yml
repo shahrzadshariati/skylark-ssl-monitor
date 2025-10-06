@@ -1,4 +1,4 @@
-name: Daily Skylark SSL Certificate Check
+name: Daily Skylark Certificate Check
 
 on:
   schedule:
@@ -25,27 +25,22 @@ jobs:
         python3 -m pip install --upgrade pip
         python3 -m pip install -r requirements.txt
 
-    - name: Look Inside File for TCPDriver
+    - name: Capture Skylark Stream and Convert to JSON
       run: |
         source venv/bin/activate
-        SBP_PATH=$(python3 -c "import sbp; print(sbp.__path__[0])")
-        TARGET_FILE="$SBP_PATH/client/drivers/network_drivers.py"
-        echo "--- Searching for 'class TCPDriver' inside the file: $TARGET_FILE ---"
-        cat $TARGET_FILE | grep "class TCPDriver" || true
+        # Run the swift tools for 60 seconds and pipe the output to the json converter
+        # We use 'timeout' to ensure the command stops automatically
+        timeout 60s swift ntripping \
+          --username ${{ secrets.SKYLARK_USERNAME }} \
+          --password ${{ secrets.SKYLARK_PASSWORD }} \
+          --url https://eu.l1l2.skylark.swiftnav.com:2101/SSR-integrity \
+          --lat 52.149 --lon 13.096 | swift rtcm32json > log.json
 
-    - name: Test Network Connectivity to Skylark
-      run: |
-        echo "--- Attempting to connect to eu.l1l2.skylark.swiftnav.com on port 2101 ---"
-        nc -vz eu.l1l2.skylark.swiftnav.com 2101
-
-    - name: Verify and Run Script
+    - name: Check Certificate Expiration from JSON
       env:
-        SKYLARK_USERNAME: ${{ secrets.SKYLARK_USERNAME }}
-        SKYLARK_PASSWORD: ${{ secrets.SKYLARK_PASSWORD }}
         SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         PAGERDUTY_ROUTING_KEY: ${{ secrets.PAGERDUTY_ROUTING_KEY }}
       run: |
         source venv/bin/activate
-        echo "--- Running verification with corrected import path ---"
-        python3 -c "from sbp.client.drivers.network_drivers import TCPDriver; print('--- DEEP VERIFICATION SUCCESS ---')"
-        python3 ssl_check_skylark.py
+        # Run our new, simpler python script to check the file
+        python3 check_json.py
