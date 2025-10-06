@@ -66,7 +66,7 @@ def run_check():
         driver.write(request)
         
         response = driver.read(1024)
-        if b"ICY 200 OK" not in response:
+        if b"200 OK" not in response:
             print(f"❌ FATAL ERROR: NTRIP handshake failed. Server response: {response.decode('ascii', errors='ignore')}")
             sys.exit(1)
         print("✅ STAGE 1 SUCCESS: Connection and NTRIP login successful.")
