@@ -1,6 +1,20 @@
-
-# Install the Python SBP library directly from the Swift Navigation repo
 requests
 git+https://github.com/swift-nav/libsbp.git#subdirectory=python
 
 
+### ## Step 2: Revert Your Python Script
+
+This is the most important part.
+1.  If you have a file named `check_json.py`, please **delete it**.
+2.  Make sure you have a file named `ssl_check_skylark.py`.
+3.  Replace the **entire contents** of `ssl_check_skylark.py` with the code below. This is the script that will print the "STAGE 1" and "STAGE 2" messages you want to see.
+
+
+http://googleusercontent.com/immersive_entry_chip/0
+
+### ## Step 3: Revert Your Workflow (`.yml`) File
+
+This workflow is now correct and will run the `ssl_check_skylark.py` script. Please replace the entire contents of your `.github/workflows/ssl_check.yml` file with this.
+
+
+http://googleusercontent.com/immersive_entry_chip/1
