@@ -5,7 +5,7 @@ import base64
 from datetime import datetime, timezone
 import requests
 import socket
-import traceback  # Import the traceback library for better error logging
+import traceback
 
 from sbp.client.framer import Framer
 from sbp.client.drivers.network_drivers import TCPDriver
@@ -86,15 +86,16 @@ def run_check():
                         break
                     f.write(data)
                     bytes_written += len(data)
-                except socket.timeout:
-                    print("DEBUG: Read timed out, continuing to listen for data...")
+                # THIS IS THE FINAL FIX: Catch both socket.timeout and OSError.
+                except (socket.timeout, OSError) as e:
+                    print(f"DEBUG: Caught a recoverable network error ({type(e).__name__}), continuing to listen...")
+                    time.sleep(1) # Pause briefly before retrying
                     continue
         print(f"✅ STAGE 2 SUCCESS: Finished recording. Wrote {bytes_written} bytes.")
 
-    # THIS IS THE MODIFIED ERROR HANDLER
     except Exception:
         print(f"❌ FATAL ERROR during connection or recording:")
-        traceback.print_exc()  # This will print the full error details.
+        traceback.print_exc()
         sys.exit(1)
     finally:
         if driver:
@@ -140,10 +141,9 @@ def run_check():
             print(f"❌ FATAL ERROR: Ran successfully but did not find a certificate message (SBP 3081) in the recorded data.")
             sys.exit(1)
 
-    # THIS IS THE SECOND MODIFIED ERROR HANDLER
     except Exception:
         print(f"❌ FATAL ERROR during file parsing:")
-        traceback.print_exc() # This will print the full error details.
+        traceback.print_exc()
         sys.exit(1)
 
 if __name__ == "__main__":
