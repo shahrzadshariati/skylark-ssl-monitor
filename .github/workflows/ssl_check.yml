@@ -25,20 +25,15 @@ jobs:
         python3 -m pip install --upgrade pip
         python3 -m pip install -r requirements.txt
 
-    - name: Verify Swift Tools Installation
-      run: |
-        echo "--- Checking contents of venv/bin/ directory ---"
-        ls -l venv/bin/
-
     - name: Capture Skylark Stream and Convert to JSON
       run: |
         source venv/bin/activate
-        # Use the full path to the executables to avoid 'command not found' errors.
-        timeout 60s ./venv/bin/swift-ntripping \
+        # THIS IS THE FINAL FIX: We run the tools as Python modules directly.
+        timeout 60s python -m sbp.client.tools.ntrip_client \
           --username ${{ secrets.SKYLARK_USERNAME }} \
           --password ${{ secrets.SKYLARK_PASSWORD }} \
           --url https://eu.l1l2.skylark.swiftnav.com:2101/SSR-integrity \
-          --lat 52.149 --lon 13.096 | ./venv/bin/swift-rtcm32json > log.json
+          --lat 52.149 --lon 13.096 | python -m sbp.client.tools.rtcm3_to_json > log.json
 
     - name: Check Certificate Expiration from JSON
       env:
