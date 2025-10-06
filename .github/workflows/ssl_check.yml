@@ -28,13 +28,14 @@ jobs:
     - name: Capture Skylark Stream and Convert to JSON
       run: |
         source venv/bin/activate
-        # Run the swift tools for 60 seconds and pipe the output to the json converter
-        # We use 'timeout' to ensure the command stops automatically
-        timeout 60s swift ntripping \
+        # THIS IS THE FINAL FIX:
+        # Use the correct, hyphenated program names 'swift-ntripping' and 'swift-rtcm32json'.
+        # The 'source' command ensures they are in the shell's PATH.
+        timeout 60s swift-ntripping \
           --username ${{ secrets.SKYLARK_USERNAME }} \
           --password ${{ secrets.SKYLARK_PASSWORD }} \
           --url https://eu.l1l2.skylark.swiftnav.com:2101/SSR-integrity \
-          --lat 52.149 --lon 13.096 | swift rtcm32json > log.json
+          --lat 52.149 --lon 13.096 | swift-rtcm32json > log.json
 
     - name: Check Certificate Expiration from JSON
       env:
@@ -42,5 +43,4 @@ jobs:
         PAGERDUTY_ROUTING_KEY: ${{ secrets.PAGERDUTY_ROUTING_KEY }}
       run: |
         source venv/bin/activate
-        # Run our new, simpler python script to check the file
         python3 check_json.py
